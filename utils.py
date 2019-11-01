@@ -2,6 +2,8 @@ import random
 import numpy as np
 import torch
 
+from model import LM
+
 def set_seed(seed):     # set the random seed for reproducibility
     random.seed(seed)
     np.random.seed(seed)
@@ -30,9 +32,25 @@ def write_doc(docs, path):
                 f.write(' '.join(s) + '\n')
             f.write('\n')
 
+def write_mid_or_last(sents_mid, write_mid, path):
+    if write_mid:
+        write_doc(sents_mid, path)
+    else:
+        sents_last = [s[-1] for s in sents_mid]
+        write_sent(sents_last, path)
+
 def logging(s, path, print_=True):
     if print_:
         print(s)
     if path:
         with open(path, 'a+') as f:
             f.write(s + '\n')
+
+def get_model(path, vocab, device):
+    print('Load model from {}'.format(path))
+    ckpt = torch.load(path)
+    train_args = ckpt['args']
+    model = LM(vocab, train_args).to(device)
+    model.load_state_dict(ckpt['model'])
+    model.eval()
+    return model
