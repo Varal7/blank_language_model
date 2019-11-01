@@ -35,19 +35,26 @@ parser.add_argument('--no_cuda', action='store_true',
                     help='disable CUDA')
 args = parser.parse_args()
 
+def select(logits):
+    if args.decode == 'sample':
+        return torch.multinomial(logits.exp(), num_samples=1)[0]
+    else:
+        return logits.argmax()
+
 def fill(seq, blanks):
     seq = torch.LongTensor([vocab.bos] + seq + [vocab.eos]).to(device)
     sent_mid = [[vocab.idx2word[id] for id in seq[1:-1]]]
-    while len(seq) < model.args.max_len:
-        logits_c, logits_l = model(seq.unsqueeze(0))
-        #l = torch.multinomial(logits_l[0].exp(), num_samples=1)[0]
-        #c = torch.multinomial(logits_c[0, l].exp(), num_samples=1)
-        l = logits_l[0].argmax()
-        c = logits_c[0, l].argmax().unsqueeze(0)
-        if c[0].item() == vocab.eos:
-            break
-        seq = torch.cat((seq[:l+1], c, seq[l+1:]))
-        sent_mid.append([vocab.idx2word[id] for id in seq[1:-1]])
+    if len(blanks) > 0:
+        while len(seq) < model.args.max_len:
+            logits_c, logits_l = model(seq.unsqueeze(0))
+            p = select(logits_l[0, blanks])
+            l = blanks[p]
+            c = select(logits_c[0, l])
+            if c.item() == vocab.eos:
+                break
+            blanks = blanks[:p+1] + [x+1 for x in blanks[p:]]
+            seq = torch.cat((seq[:l+1], c.unsqueeze(0), seq[l+1:]))
+            sent_mid.append([vocab.idx2word[id] for id in seq[1:-1]])
     return sent_mid
 
 if __name__ == '__main__':
@@ -68,5 +75,7 @@ if __name__ == '__main__':
                 blanks.append(len(seq))
             else:
                 seq.append(id)
+        if args.anywhere:
+            blanks = list(range(len(seq)+1))
         output.append(fill(seq, blanks))
     write_mid_or_last(output, args.write_mid, out_path)
