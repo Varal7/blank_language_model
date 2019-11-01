@@ -45,7 +45,7 @@ if __name__ == '__main__':
     n = 1
     if len(sys.argv) > 2:
         n = int(sys.argv[2])
-        path += str(n)
+        path += '.' + str(n) + 'x'
 
     drop, blank, fill = [], [], []
     for i in range(n):
