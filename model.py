@@ -7,7 +7,7 @@ import torch.optim as optim
 from transformer.Models import Encoder
 from transformer.Optim import *
 
-def loss_rec(pred, gold, pad, smoothing):
+def seq_cross_entropy(pred, gold, pad, smoothing):
     ''' Calculate cross entropy loss, apply label smoothing if needed. '''
 
     pred = pred.contiguous().view(-1, pred.size(2))
@@ -30,6 +30,28 @@ def loss_rec(pred, gold, pad, smoothing):
 
     return loss
 
+def get_canvas(seq, keep, __):
+    bs, n = seq.size(0), seq.size(1)
+    ___ = torch.zeros(bs, 1, dtype=torch.long, device=seq.device).fill_(__)
+    canvas = torch.zeros(bs, 0, dtype=torch.long, device=seq.device)
+    blanks, rest, pos, l_, r_ = [], [], [], [], []
+    i = 0
+    while i < n:
+        if i in keep:
+            canvas = torch.cat((canvas, seq[:, i:i+1]), dim=1)
+            i += 1
+        else:
+            blanks.append(canvas.size(1))
+            a = []
+            while i < n and i not in keep:
+                rest.append(i)
+                pos.append(canvas.size(1))
+                a.append(1)
+                i += 1
+            l_ += [0] + a[1:]
+            r_ += a[:-1] + [0]
+            canvas = torch.cat((canvas, ___), dim=1)
+    return canvas, blanks, rest, pos, l_, r_
 
 class LM(nn.Module):
     """Language Model"""
@@ -69,36 +91,25 @@ class LM(nn.Module):
         else:
             self.opt = LRScheduler(opt, args.lr)
 
-    def forward(self, seq):
-        pos = torch.arange(seq.size(1)).repeat(seq.size(0), 1).to(seq.device)
-        output, *_ = self.G(seq, pos)
+    def forward(self, canvas, blanks):
+        pos = torch.arange(canvas.size(1)).repeat(canvas.size(0), 1).to(seq.device)
+        output, *_ = self.G(canvas, pos)
+
         slot = torch.cat((output[:, :-1, :], output[:, 1:, :]), dim=-1)
         logits_c = self.tgt_word_prj(slot) * self.x_logit_scale
         logits_l = self.loc(slot).squeeze(-1)
         return logits_c, logits_l
 
-    def log_prb(self, seq, canvas, rest, slot):
-        logits_c, logits_l = self(seq[:, canvas])
-        lp_c = -loss_rec(logits_c[:, slot, :], seq[:, rest],
+    def loss(self, seq):
+        n = seq.size(1)
+        k = np.random.randint(n)
+        keep = sorted(np.random.permutation(n)[:k])
+        canvas, blanks, rest, pos, l_, r_ = get_canvas(seq, keep, self.vocab.blank)
+
+        import pdb; pdb.set_trace()
+        logits_c, logits_l = self(canvas, blanks)
+        lp_c = -seq_cross_entropy(logits_c[:, slot, :], seq[:, rest],
             self.vocab.pad, self.args.label_smoothing)
         lp_l = F.log_softmax(logits_l, dim=1)[:, slot].mean()
-        return lp_c + lp_l
-
-    def loss(self, seq):
-        n = seq.size(1) - 2
-        t = np.random.randint(n+1)
-        order = np.random.permutation(n) + 1
-        canvas = [0] + sorted(order[:t]) + [n+1]
-        if t < n:
-            rest = sorted(order[t:])
-            slot = []
-            j = 0
-            for i in rest:
-                while canvas[j] < i:
-                    j += 1
-                slot.append(j-1)
-        else:
-            rest = [n+1]
-            slot = [n]
 
         return -self.log_prb(seq, canvas, rest, slot)*(n+1) - self.log_factorial[n]

@@ -4,7 +4,7 @@ def get_batch(x, vocab):
     batch_seq = []
     for s in x:
         s_idx = [vocab.word2idx[w] if w in vocab.word2idx else vocab.unk for w in s]
-        batch_seq.append([vocab.bos] + s_idx + [vocab.eos])
+        batch_seq.append(s_idx)
     return torch.LongTensor(batch_seq)
 
 def get_batches(data, vocab, batch_size):
