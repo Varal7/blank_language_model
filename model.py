@@ -34,7 +34,7 @@ def get_canvas(seq, keep, __):
     bs, n = seq.size(0), seq.size(1)
     ___ = torch.zeros(bs, 1, dtype=torch.long, device=seq.device).fill_(__)
     canvas = torch.zeros(bs, 0, dtype=torch.long, device=seq.device)
-    blanks, rest, pos, lb, rb = [], [], [], [], []
+    blanks, rest, loc, lb, rb = [], [], [], [], []
     i = 0
     while i < n:
         if i in keep:
@@ -44,14 +44,14 @@ def get_canvas(seq, keep, __):
             a = []
             while i < n and i not in keep:
                 rest.append(i)
-                pos.append(len(blanks))
+                loc.append(len(blanks))
                 a.append(1)
                 i += 1
             lb += [0] + a[1:]
             rb += a[:-1] + [0]
             blanks.append(canvas.size(1))
             canvas = torch.cat((canvas, ___), dim=1)
-    return canvas, blanks, rest, pos, lb, rb
+    return canvas, blanks, rest, loc, lb, rb
 
 class LM(nn.Module):
     """Language Model"""
@@ -71,9 +71,12 @@ class LM(nn.Module):
             n_layers=args.n_layers, n_head=args.n_head, d_k=args.d_k, d_v=args.d_v,
             dropout=args.dropout)
 
-        self.word_lb_rb = nn.Linear(args.d_model, vocab.size*4, bias=False)
-        nn.init.xavier_normal_(self.word_lb_rb.weight)
+        self.tgt_word_prj = nn.Linear(args.d_model, vocab.size, bias=False)
+        nn.init.xavier_normal_(self.tgt_word_prj.weight)
         self.loc = nn.Linear(args.d_model, 1, bias=False)
+        self.lblank = nn.Linear(args.d_model, 1, bias=False)
+        self.lb_bias = nn.Embedding(2, args.d_model)
+        self.rblank = nn.Linear(args.d_model, 1, bias=False)
 
         opt = optim.Adam(self.parameters(), betas=eval(args.adam_betas),
             eps=args.adam_eps, weight_decay=args.weight_decay)
@@ -85,20 +88,33 @@ class LM(nn.Module):
             self.opt = LRScheduler(opt, args.lr)
 
     def forward(self, canvas, blanks):
-        pos = torch.arange(canvas.size(1)).repeat(canvas.size(0), 1).to(canvas.device)
+        pos = torch.arange(canvas.size(1)).repeat(len(canvas), 1).to(canvas.device)
         output, *_ = self.G(canvas, pos)
-        output = output[:, blanks, :]
-        return self.loc(output).squeeze(-1), self.word_lb_rb(output)
+        return output[:, blanks, :]
 
     def loss(self, seq):
         n = seq.size(1)
         k = np.random.randint(n)
         keep = sorted(np.random.permutation(n)[:k])
-        canvas, blanks, rest, pos, lb, rb = get_canvas(seq, keep, self.vocab.blank)
-        logits_loc, logits_word_lb_rb = self(canvas, blanks)
-        loss_loc = -F.log_softmax(logits_loc, dim=1)[:, pos].mean()
-        index = seq[:, rest]*4 + torch.LongTensor(lb).to(seq.device)*2 + \
-            torch.LongTensor(rb).to(seq.device)
-        loss_word_lb_rb = seq_cross_entropy(logits_word_lb_rb[:, pos, :], index,
+        canvas, blanks, rest, loc, lb, rb = get_canvas(seq, keep, self.vocab.blank)
+        output = self(canvas, blanks)
+
+        logits_loc = self.loc(output).squeeze(-1)
+        loss_loc = -F.log_softmax(logits_loc, dim=1)[:, loc].mean()
+        output_loc = output[:, loc, :]
+
+        logits_word = self.tgt_word_prj(output_loc)
+        loss_word = seq_cross_entropy(logits_word, seq[:, rest],
             self.vocab.pad, self.args.label_smoothing)
-        return (loss_loc + loss_word_lb_rb) * n - self.log_factorial[n]
+        output_loc_word = output_loc + self.G.src_word_emb(seq[:, rest])
+
+        logits_lb = self.lblank(output_loc_word).squeeze(-1)
+        tlb = torch.tensor(lb).repeat(len(canvas), 1).to(canvas.device)
+        loss_lb = F.binary_cross_entropy_with_logits(logits_lb, tlb.float())
+        output_loc_word_lb = output_loc_word + self.lb_bias(tlb)
+
+        logits_rb = self.rblank(output_loc_word_lb).squeeze(-1)
+        trb = torch.tensor(rb).repeat(len(canvas), 1).to(canvas.device)
+        loss_rb = F.binary_cross_entropy_with_logits(logits_rb, trb.float())
+
+        return (loss_loc+loss_word+loss_lb+loss_rb) * n - self.log_factorial[n]
