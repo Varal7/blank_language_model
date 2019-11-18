@@ -21,35 +21,44 @@ parser.add_argument('--output', default='output.txt', metavar='FILE',
 
 parser.add_argument('--eval', default='', metavar='FILE',
                     help='data file to evaluate')
-parser.add_argument('--sample', action='store_true',
-                    help='sample sentences')
-parser.add_argument('--expand', default='', metavar='FILE',
+parser.add_argument('--sample', type=int, default=0, metavar='N',
+                    help='num of sentences to generate')
+parser.add_argument('--fill', default='', metavar='FILE',
                     help='input file to expand')
 
+parser.add_argument('--decode', default='greedy', metavar='M',
+                    choices=['greedy', 'sample'],
+                    help='greedy decoding or sampling')
 parser.add_argument('--write_mid', action='store_true',
                     help='write intermediate partial sentences')
-parser.add_argument('--n', type=int, default=1000, metavar='N',
-                    help='num of sentences to generate')
+
 parser.add_argument('--batch_size', type=int, default=64, metavar='N',
                     help='batch size')
-
 parser.add_argument('--seed', type=int, default=1111, metavar='N',
                     help='random seed')
 parser.add_argument('--no_cuda', action='store_true',
                     help='disable CUDA')
 args = parser.parse_args()
 
-def generate(seq=[]):
-    seq = torch.LongTensor([vocab.bos] + seq + [vocab.eos]).to(device)
-    sent_mid = [[vocab.idx2word[id] for id in seq[1:-1]]]
-    while len(seq) < model.args.max_len:
-        logits_c, logits_l = model(seq.unsqueeze(0))
-        l = torch.multinomial(logits_l[0].exp(), num_samples=1)[0]
-        c = torch.multinomial(logits_c[0, l].exp(), num_samples=1)
-        if c[0].item() == vocab.eos:
-            break
-        seq = torch.cat((seq[:l+1], c, seq[l+1:]))
-        sent_mid.append([vocab.idx2word[id] for id in seq[1:-1]])
+def select(logits):
+    if args.decode == 'sample':
+        return torch.multinomial(logits.exp(), num_samples=1)[0]
+    else:
+        return logits.argmax()
+
+def generate(seq=[vocab.blank], blanks=[0]):
+    seq = torch.LongTensor(seq).to(device)
+    sent_mid = [[vocab.idx2word[id] for id in seq]]
+    while len(blanks) > 0:
+        logits_loc, logits_word_lb_rb = model(seq.unsqueeze(0), blanks)
+        loc = select(logits_loc[0])
+        word_lb_rb = select(logits_word_lb_rb[0, loc])
+        word = int(word_lb_rb / 4)
+        lb = int((word_lb_rb % 4) / 2)
+        rb = word_lb_rb % 2
+        blanks =
+        seq = torch.cat((seq[:l+1], word, seq[l+1:]))
+        sent_mid.append([vocab.idx2word[id] for id in seq])
     return sent_mid
 
 if __name__ == '__main__':
@@ -69,12 +78,20 @@ if __name__ == '__main__':
         print('PPL {:.2f}'.format(np.exp(meter.avg * len(sents) / n_words)))
 
     if args.sample:
-        sents = [generate() for _ in range(args.n)]
+        sents = [generate() for _ in range(args.sample)]
         write_mid_or_last(sents, args.write_mid, out_path)
 
     if args.expand:
-        sents = load_sent(args.expand)
-        sents = [[vocab.word2idx[w] if w in vocab.word2idx else vocab.unk
-            for w in s] for s in sents]
-        sents = [generate(s) for s in sents]
+        inp_sents = load_sent(args.fill)
+        sents, blanks = [], []
+        for s in inp_sents:
+            sent, blank = [], []
+            for w in s:
+                id = vocab.word2idx[w] if w in vocab.word2idx else vocab.unk
+                if id == vocab.blank:
+                    blank.append(len(sent))
+                sent.append(id)
+            sents.append(sent)
+            blanks.append(blank)
+        sents = [generate(s, b) for s, b in zip(sents, blanks)]
         write_mid_or_last(sents, args.write_mid, out_path)
