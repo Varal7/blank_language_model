@@ -74,6 +74,7 @@ class LM(nn.Module):
         self.tgt_word_prj = nn.Linear(args.d_model, vocab.size, bias=False)
         nn.init.xavier_normal_(self.tgt_word_prj.weight)
         self.loc = nn.Linear(args.d_model, 1, bias=False)
+        self.word_bias = nn.Embedding(vocab.size, args.d_model)
         self.lblank = nn.Linear(args.d_model, 1, bias=False)
         self.lb_bias = nn.Embedding(2, args.d_model)
         self.rblank = nn.Linear(args.d_model, 1, bias=False)
@@ -106,7 +107,7 @@ class LM(nn.Module):
         logits_word = self.tgt_word_prj(output_loc)
         loss_word = seq_cross_entropy(logits_word, seq[:, rest],
             self.vocab.pad, self.args.label_smoothing)
-        output_loc_word = output_loc + self.G.src_word_emb(seq[:, rest])
+        output_loc_word = output_loc + self.word_bias(seq[:, rest])
 
         logits_lb = self.lblank(output_loc_word).squeeze(-1)
         tlb = torch.tensor(lb).repeat(len(canvas), 1).to(canvas.device)
