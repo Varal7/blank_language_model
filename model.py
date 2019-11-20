@@ -75,9 +75,7 @@ class LM(nn.Module):
         nn.init.xavier_normal_(self.tgt_word_prj.weight)
         self.loc = nn.Linear(args.d_model, 1, bias=False)
         self.word_bias = nn.Embedding(vocab.size, args.d_model)
-        self.lblank = nn.Linear(args.d_model, 1, bias=False)
-        self.lb_bias = nn.Embedding(2, args.d_model)
-        self.rblank = nn.Linear(args.d_model, 1, bias=False)
+        self.lrb = nn.Linear(args.d_model, 4, bias=False)
 
         opt = optim.Adam(self.parameters(), betas=eval(args.adam_betas),
             eps=args.adam_eps, weight_decay=args.weight_decay)
@@ -109,13 +107,8 @@ class LM(nn.Module):
             self.vocab.pad, self.args.label_smoothing)
         output_loc_word = output_loc + self.word_bias(seq[:, rest])
 
-        logits_lb = self.lblank(output_loc_word).squeeze(-1)
-        tlb = torch.tensor(lb).repeat(len(canvas), 1).to(canvas.device)
-        loss_lb = F.binary_cross_entropy_with_logits(logits_lb, tlb.float())
-        output_loc_word_lb = output_loc_word + self.lb_bias(tlb)
+        logits_lrb = self.lrb(output_loc_word)
+        lrb = (torch.tensor(lb) * 2 + torch.tensor(rb)).to(canvas.device)
+        loss_lrb = F.cross_entropy(logits_lrb.view(-1, 4), lrb.repeat(len(canvas)))
 
-        logits_rb = self.rblank(output_loc_word_lb).squeeze(-1)
-        trb = torch.tensor(rb).repeat(len(canvas), 1).to(canvas.device)
-        loss_rb = F.binary_cross_entropy_with_logits(logits_rb, trb.float())
-
-        return (loss_loc+loss_word+loss_lb+loss_rb) * n - self.log_factorial[n]
+        return (loss_loc+loss_word+loss_lrb) * n - self.log_factorial[n]
