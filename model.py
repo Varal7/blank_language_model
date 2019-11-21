@@ -75,6 +75,7 @@ class LM(nn.Module):
         nn.init.xavier_normal_(self.tgt_word_prj.weight)
         self.loc = nn.Linear(args.d_model, 1, bias=False)
         self.lrb = nn.Sequential(nn.Linear(args.d_model*2, args.d_model),
+            nn.ReLU(), nn.Linear(args.d_model, args.d_model),
             nn.ReLU(), nn.Linear(args.d_model, 4))
 
         opt = optim.Adam(self.parameters(), betas=eval(args.adam_betas),
