@@ -6,7 +6,6 @@ import torch.optim as optim
 
 from transformer.Models import Encoder
 from transformer.Optim import *
-from transformer.SubLayers import PositionwiseFeedForward
 
 def seq_cross_entropy(pred, gold, pad, smoothing):
     ''' Calculate cross entropy loss, apply label smoothing if needed. '''
@@ -75,8 +74,7 @@ class LM(nn.Module):
         self.tgt_word_prj = nn.Linear(args.d_model, vocab.size, bias=False)
         nn.init.xavier_normal_(self.tgt_word_prj.weight)
         self.loc = nn.Linear(args.d_model, 1, bias=False)
-        self.ffn = PositionwiseFeedForward(args.d_model, args.d_model)
-        self.lrb = nn.Linear(args.d_model, 4, bias=False)
+        self.lrb = nn.Linear(args.d_model*2, 4, bias=False)
 
         opt = optim.Adam(self.parameters(), betas=eval(args.adam_betas),
             eps=args.adam_eps, weight_decay=args.weight_decay)
@@ -106,7 +104,7 @@ class LM(nn.Module):
         logits_word = self.tgt_word_prj(output_loc)
         loss_word = seq_cross_entropy(logits_word, seq[:, rest],
             self.vocab.pad, self.args.label_smoothing)
-        output_loc_word = self.ffn(output_loc + self.G.src_word_emb(seq[:, rest]))
+        output_loc_word = torch.cat((output_loc, self.G.src_word_emb(seq[:, rest])), dim=-1)
 
         logits_lrb = self.lrb(output_loc_word)
         lrb = (torch.tensor(lb) * 2 + torch.tensor(rb)).to(canvas.device)
