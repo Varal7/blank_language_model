@@ -74,8 +74,6 @@ class LM(nn.Module):
         self.tgt_word_prj = nn.Linear(args.d_model, vocab.size, bias=False)
         nn.init.xavier_normal_(self.tgt_word_prj.weight)
         self.loc = nn.Linear(args.d_model, 1, bias=False)
-        self.lend = nn.Parameter(torch.zeros(1, 1, args.d_model))
-        self.rend = nn.Parameter(torch.zeros(1, 1, args.d_model))
         self.lrb = nn.Sequential(nn.Linear(args.d_model*3, args.d_model),
             nn.ReLU(), nn.Linear(args.d_model, 4))
 
@@ -88,23 +86,23 @@ class LM(nn.Module):
         else:
             self.opt = LRScheduler(opt, args.lr)
 
-    def forward(self, canvas):
-        pos = torch.arange(canvas.size(1)).repeat(len(canvas), 1).to(canvas.device)
-        output, *_ = self.G(canvas, pos)
-        return output
+    def forward(self, canvas, blanks):
+        bs, l, dev = canvas.size(0), canvas.size(1), canvas.device
+        bos = torch.tensor(self.vocab.bos).repeat(bs, 1).to(dev)
+        eos = torch.tensor(self.vocab.eos).repeat(bs, 1).to(dev)
+        _canvas_ = torch.cat((bos, canvas, eos), dim=1)
+        pos = torch.arange(l+2).repeat(bs, 1).to(dev)
+        output, *_ = self.G(_canvas_, pos)
+        return output[:, blanks, :],    \
+            output[:, [x+1 for x in blanks], :],    \
+            output[:, [x+2 for x in blanks], :]
 
     def loss(self, seq):
         n = seq.size(1)
         k = np.random.randint(n)
         keep = sorted(np.random.permutation(n)[:k])
         canvas, blanks, rest, loc, lb, rb = get_canvas(seq, keep, self.vocab.blank)
-        output = self(canvas)
-
-        lend = self.lend.expand(len(canvas), -1, -1)
-        rend = self.rend.expand(len(canvas), -1, -1)
-        repr_blank = output[:, blanks, :]
-        repr_left = torch.cat((lend, output[:, :-1, :]), dim=1)[:, blanks, :]
-        repr_right = torch.cat((output[:, 1:, :], rend), dim=1)[:, blanks, :]
+        repr_left, repr_blank, repr_right = self(canvas, blanks)
 
         logits_loc = self.loc(repr_blank).squeeze(-1)
         loss_loc = -F.log_softmax(logits_loc, dim=1)[:, loc].mean()
