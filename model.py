@@ -72,8 +72,7 @@ class LM(nn.Module):
             dropout=args.dropout)
 
         self.loc = nn.Linear(args.d_model, 1)
-        self.word = nn.Sequential(nn.Linear(args.d_model, args.d_model),
-            nn.ReLU(), nn.Linear(args.d_model, vocab.size))
+        self.word = nn.Linear(args.d_model, vocab.size)
         self.lrb = nn.Sequential(nn.Linear(args.d_model*2, args.d_model),
             nn.ReLU(), nn.Linear(args.d_model, 4))
 
