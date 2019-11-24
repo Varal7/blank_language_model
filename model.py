@@ -71,10 +71,10 @@ class LM(nn.Module):
             n_layers=args.n_layers, n_head=args.n_head, d_k=args.d_k, d_v=args.d_v,
             dropout=args.dropout)
 
-        self.tgt_word_prj = nn.Linear(args.d_model, vocab.size, bias=False)
-        nn.init.xavier_normal_(self.tgt_word_prj.weight)
-        self.loc = nn.Linear(args.d_model, 1, bias=False)
-        self.lrb = nn.Sequential(nn.Linear(args.d_model*3, args.d_model),
+        self.loc = nn.Linear(args.d_model, 1)
+        self.word = nn.Sequential(nn.Linear(args.d_model, args.d_model),
+            nn.ReLU(), nn.Linear(args.d_model, vocab.size))
+        self.lrb = nn.Sequential(nn.Linear(args.d_model*2, args.d_model),
             nn.ReLU(), nn.Linear(args.d_model, 4))
 
         opt = optim.Adam(self.parameters(), betas=eval(args.adam_betas),
@@ -87,33 +87,27 @@ class LM(nn.Module):
             self.opt = LRScheduler(opt, args.lr)
 
     def forward(self, canvas, blanks):
-        bs, l, dev = canvas.size(0), canvas.size(1), canvas.device
-        bos = torch.tensor(self.vocab.bos).repeat(bs, 1).to(dev)
-        eos = torch.tensor(self.vocab.eos).repeat(bs, 1).to(dev)
-        _canvas_ = torch.cat((bos, canvas, eos), dim=1)
-        pos = torch.arange(l+2).repeat(bs, 1).to(dev)
-        output, *_ = self.G(_canvas_, pos)
-        return output[:, blanks, :],    \
-            output[:, [x+1 for x in blanks], :],    \
-            output[:, [x+2 for x in blanks], :]
+        pos = torch.arange(canvas.size(1)).repeat(len(canvas), 1).to(canvas.device)
+        output, *_ = self.G(canvas, pos)
+        return output[:, blanks, :]
 
     def loss(self, seq):
         n = seq.size(1)
         k = np.random.randint(n)
         keep = sorted(np.random.permutation(n)[:k])
         canvas, blanks, rest, loc, lb, rb = get_canvas(seq, keep, self.vocab.blank)
-        repr_left, repr_blank, repr_right = self(canvas, blanks)
+        output = self(canvas, blanks)
 
-        logits_loc = self.loc(repr_blank).squeeze(-1)
+        logits_loc = self.loc(output).squeeze(-1)
         loss_loc = -F.log_softmax(logits_loc, dim=1)[:, loc].mean()
+        output_loc = output[:, loc, :]
 
-        logits_word = self.tgt_word_prj(repr_blank)
-        loss_word = seq_cross_entropy(logits_word[:, loc, :], seq[:, rest],
+        logits_word = self.word(output_loc)
+        loss_word = seq_cross_entropy(logits_word, seq[:, rest],
             self.vocab.pad, self.args.label_smoothing)
+        output_loc_word = torch.cat((output_loc, self.G.src_word_emb(seq[:, rest])), dim=-1)
 
-        word_left_right = torch.cat((self.G.src_word_emb(seq[:, rest]),
-            repr_left[:, loc, :], repr_right[:, loc, :]), dim=-1)
-        logits_lrb = self.lrb(word_left_right)
+        logits_lrb = self.lrb(output_loc_word)
         lrb = (torch.tensor(lb) * 2 + torch.tensor(rb)).to(canvas.device)
         loss_lrb = F.cross_entropy(logits_lrb.view(-1, 4), lrb.repeat(len(canvas)))
 
