@@ -73,8 +73,8 @@ class LM(nn.Module):
 
         self.loc = nn.Linear(args.d_model, 1)
         self.word = nn.Linear(args.d_model, vocab.size)
-        self.lrb = nn.Sequential(nn.Linear(args.d_model*2, args.d_model),
-            nn.ReLU(), nn.Linear(args.d_model, 4))
+        self.lrb = nn.Sequential(nn.Linear(args.d_model*2, args.d_model*2),
+            nn.ReLU(), nn.Linear(args.d_model*2, 4))
 
         opt = optim.Adam(self.parameters(), betas=eval(args.adam_betas),
             eps=args.adam_eps, weight_decay=args.weight_decay)
