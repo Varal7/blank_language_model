@@ -20,15 +20,20 @@ class Vocab(object):
 
     @staticmethod
     def build(sents, path, size):
-        v = ['<pad>', '<unk>', '<bos>', '<eos>', '<blank>']
-        words = [w for s in sents for w in s]
-        cnt = Counter(words)
-        n_unk = len(words)
-        for w, c in cnt.most_common(size):
-            v.append(w)
-            n_unk -= c
-        cnt['<unk>'] = n_unk
+        voc = ['<pad>', '<unk>', '<bos>', '<eos>', '<blank>']
+        occ = [0, 0, 0, 0, 0]
+
+        cnt = Counter([w for s in sents for w in s])
+        for i, v in enumerate(voc):
+            if v in cnt:
+                occ[i] = cnt[v]
+                del cnt[v]
+        for v, o in cnt.most_common(size):
+            voc.append(v)
+            occ.append(o)
+        for v, o in cnt.most_common()[size:]:
+            occ[1] += o
 
         with open(path, 'w') as f:
-            for w in v:
-                f.write('{}\t{}\n'.format(w, cnt[w]))
+            for v, o in zip(voc, occ):
+                f.write('{}\t{}\n'.format(v, o))
