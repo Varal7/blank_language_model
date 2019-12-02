@@ -40,8 +40,8 @@ parser.add_argument('--n_head', type=int, default=8, metavar='N',
 parser.add_argument('--n_layers', type=int, default=6, metavar='N',
                     help='number of layers')
 
-#parser.add_argument('--share_emb_prj_weight', action='store_true',
-#                    help='share word embedding and projection weights')
+parser.add_argument('--share_emb_prj_weight', action='store_true',
+                    help='share word embedding and projection weights')
 parser.add_argument('--label_smoothing', action='store_true',
                     help='label smoothing')
 

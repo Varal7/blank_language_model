@@ -71,8 +71,13 @@ class LM(nn.Module):
             n_layers=args.n_layers, n_head=args.n_head, d_k=args.d_k, d_v=args.d_v,
             dropout=args.dropout)
 
+        self.word = nn.Linear(args.d_model, vocab.size, bias=False)
+        self.x_logit_scale = 1.
+        if args.share_emb_prj_weight:
+            self.word.weight = self.G.src_word_emb.weight
+            self.x_logit_scale = (args.d_model ** -0.5)
+
         self.loc = nn.Linear(args.d_model, 1)
-        self.word = nn.Linear(args.d_model, vocab.size)
         self.lrb = nn.Sequential(nn.Linear(args.d_model*2, args.d_model*2),
             nn.ReLU(), nn.Linear(args.d_model*2, 4))
 
@@ -101,7 +106,7 @@ class LM(nn.Module):
         loss_loc = -F.log_softmax(logits_loc, dim=1)[:, loc].mean()
         output_loc = output[:, loc, :]
 
-        logits_word = self.word(output_loc)
+        logits_word = self.word(output_loc) * self.x_logit_scale
         loss_word = seq_cross_entropy(logits_word, seq[:, rest],
             self.vocab.pad, self.args.label_smoothing)
         output_loc_word = torch.cat((output_loc, self.G.src_word_emb(seq[:, rest])), dim=-1)
