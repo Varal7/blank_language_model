@@ -90,7 +90,7 @@ class LM(nn.Module):
         output, *_ = self.G(canvas, pos)
         return output[:, blanks, :]
 
-    def loss(self, seq):
+    def losses(self, seq):
         n = seq.size(1)
         k = np.random.randint(n)
         keep = sorted(np.random.permutation(n)[:k])
@@ -110,4 +110,5 @@ class LM(nn.Module):
         lrb = (torch.tensor(lb) * 2 + torch.tensor(rb)).to(canvas.device)
         loss_lrb = F.cross_entropy(logits_lrb.view(-1, 4), lrb.repeat(len(canvas)))
 
-        return (loss_loc+loss_word+loss_lrb) * n - self.log_factorial[n]
+        nll = (loss_loc + loss_word + loss_lrb) * n - self.log_factorial[n]
+        return {'nll': nll, 'loc': loss_loc, 'word': loss_word, 'lrb': loss_lrb}

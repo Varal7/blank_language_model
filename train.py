@@ -2,6 +2,7 @@ import argparse
 import time
 import os
 import random
+import collections
 import numpy as np
 import torch
 
@@ -86,12 +87,13 @@ parser.add_argument('--no_cuda', action='store_true',
 
 def evaluate(model, device, batches):
     model.eval()
-    meter = AverageMeter()
+    meters = collections.defaultdict(lambda: AverageMeter())
     with torch.no_grad():
         for batch in batches:
-            loss = model.loss(batch.to(device))
-            meter.update(loss.item(), len(batch))
-    return meter
+            losses = model.losses(batch.to(device))
+            for k, v in losses.items():
+                meters[k].update(v.item(), len(batch))
+    return meters
 
 def main(args):
     if not os.path.exists(args.save_dir):
@@ -129,39 +131,45 @@ def main(args):
     start_time = time.time()
     random.shuffle(train_batches)
     model.train()
-    meter = AverageMeter()
+    meters = collections.defaultdict(lambda: AverageMeter())
     best_val_loss = None
     index = 0
     for step in range(1, 1 + args.train_steps):
         model.opt.zero_grad()
         for _ in range(args.accum_grad):
-            loss = model.loss(train_batches[index].to(device))
-            (loss / args.accum_grad).backward()
-            meter.update(loss.item())
+            losses = model.losses(train_batches[index].to(device))
+            for k, v in losses.items():
+                meters[k].update(v.item())
+                losses[k] /= args.accum_grad
+            losses['nll'].backward()
             index = (index + 1) % len(train_batches)
         model.opt.step()
 
         if step % args.log_every == 0:
-            logging('| step {:6d}/{:6d} | loss {:.2f}'.format(
-                step, args.train_steps, meter.avg), log_file)
-            meter.clear()
+            log = '| step {:6d}/{:6d} |'.format(step, args.train_steps)
+            for k, meter in meters.items():
+                log += ' {} {:.2f},'.format(k, meter.avg)
+                meter.clear()
+            logging(log, log_file)
 
         if step % args.checkpoint_every == 0:
             logging('-' * 80, log_file)
-            valid_meter = evaluate(model, device, valid_batches)
+            valid_meters = evaluate(model, device, valid_batches)
             model.train()
             ckpt = {'args': args, 'model': model.state_dict()}
-            if not best_val_loss or valid_meter.avg < best_val_loss:
-                best_val_loss = valid_meter.avg
+            if not best_val_loss or valid_meters['nll'].avg < best_val_loss:
+                best_val_loss = valid_meters['nll'].avg
                 torch.save(ckpt, os.path.join(args.save_dir, 'model_best.pt'))
             elif args.lr_schedule == 'reduce_on_plateau':
                 model.opt.lr /= args.lr_decay
                 model.opt.set_lr()
             torch.save(ckpt, os.path.join(args.save_dir, 'model_last.pt'))
-            logging('| step {:6d} | time {:5.0f}s | lr {:.7f} '
-                '| valid loss {:.2f} | best {:.2f}'.format(
-                step, time.time() - start_time, model.opt.lr,
-                valid_meter.avg, best_val_loss), log_file)
+            log = '| step {:6d} | time {:5.0f}s | lr {:.7f} | valid'.format(
+                step, time.time() - start_time, model.opt.lr)
+            for k, meter in valid_meters.items():
+                log += ' {} {:.2f},'.format(k, meter.avg)
+            log += ' | best {:.2f}'.format(best_val_loss)
+            logging(log, log_file)
             logging('-' * 80, log_file)
 
 if __name__ == '__main__':
