@@ -40,17 +40,11 @@ parser.add_argument('--no_cuda', action='store_true',
                     help='disable CUDA')
 args = parser.parse_args()
 
-def select_multinomial(logits):
+def select(logits):
     if args.decode == 'sample':
         return torch.multinomial(logits.exp(), num_samples=1)[0]
     else:
         return logits.argmax()
-
-def select_bernoulli(logits):
-    if args.decode == 'sample':
-        return torch.bernoulli(logits.sigmoid()).long()
-    else:
-        return (logits > 0).long()
 
 def generate(seq):
     seq = torch.LongTensor(seq).to(device)
@@ -58,13 +52,12 @@ def generate(seq):
     sent_mid = [[vocab.idx2word[id] for id in seq]]
     while len(blanks) > 0 and len(seq) <= model.args.max_len:
         output = model(seq.unsqueeze(0), blanks)[0]
-        loc = select_multinomial(model.loc(output).squeeze(-1))
+        loc = select(model.loc(output).squeeze(-1))
         output = output[loc]
-        word = select_multinomial(model.tgt_word_prj(output))
-        output += model.G.src_word_emb(word)
-        lb = select_bernoulli(model.lblank(output).squeeze(-1))
-        output += model.lb_bias(lb)
-        rb = select_bernoulli(model.rblank(output).squeeze(-1))
+        word = select(model.word(output) * model.x_logit_scale)
+        output = torch.cat((output, model.G.src_word_emb(word)), dim=-1)
+        lrb = select(model.lrb(output))
+        lb, rb = lrb / 2, lrb % 2
 
         ins = ([vocab.blank] if lb else []) + [word] + ([vocab.blank] if rb else [])
         ins = torch.LongTensor(ins).to(device)
