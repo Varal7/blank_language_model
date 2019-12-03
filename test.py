@@ -53,10 +53,10 @@ def generate(seq):
     while len(blanks) > 0 and len(seq) <= model.args.max_len:
         output = model(seq.unsqueeze(0), blanks)[0]
         loc = select(model.loc(output).squeeze(-1))
-        output = output[loc]
-        word = select(model.word(output) * model.x_logit_scale)
-        output = torch.cat((output, model.G.src_word_emb(word)), dim=-1)
-        lrb = select(model.lrb(output))
+        output_loc = output[loc]
+        word = select(model.word(output_loc) * model.x_logit_scale)
+        output_loc_word = torch.cat((output_loc, model.G.src_word_emb(word)), dim=-1)
+        lrb = select(model.lrb(output_loc_word))
         lb, rb = lrb / 2, lrb % 2
 
         ins = ([vocab.blank] if lb else []) + [word] + ([vocab.blank] if rb else [])
