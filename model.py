@@ -7,11 +7,12 @@ import torch.optim as optim
 from transformer.Models import Encoder
 from transformer.Optim import *
 
-def seq_cross_entropy(pred, gold, pad, smoothing):
+def seq_cross_entropy(pred, gold, pad, smoothing=False):
     ''' Calculate cross entropy loss, apply label smoothing if needed. '''
 
-    pred = pred.contiguous().view(-1, pred.size(2))
-    gold = gold.contiguous().view(-1)
+    gold_shape = gold.shape
+    pred = pred.view(-1, pred.size(-1))
+    gold = gold.view(-1)
 
     if smoothing:
         import pdb; pdb.set_trace()
@@ -26,32 +27,73 @@ def seq_cross_entropy(pred, gold, pad, smoothing):
         loss = -(one_hot * log_prb).sum(dim=1)
         loss = loss.masked_select(non_pad_mask).sum()  # average later
     else:
-        loss = F.cross_entropy(pred, gold, ignore_index=pad)
+        loss = F.cross_entropy(pred, gold, ignore_index=pad, reduction='none')
 
-    return loss
+    return loss.view(gold_shape)
 
-def get_canvas(seq, keep, __):
-    bs, n = seq.size(0), seq.size(1)
-    ___ = torch.zeros(bs, 1, dtype=torch.long, device=seq.device).fill_(__)
-    canvas = torch.zeros(bs, 0, dtype=torch.long, device=seq.device)
-    blanks, rest, loc, lb, rb = [], [], [], [], []
-    i = 0
-    while i < n:
-        if i in keep:
-            canvas = torch.cat((canvas, seq[:, i:i+1]), dim=1)
-            i += 1
-        else:
-            a = []
-            while i < n and i not in keep:
-                rest.append(i)
-                loc.append(len(blanks))
-                a.append(1)
+def get_canvas(seq, lens, vocab):
+    all_canvas, all_blanks, all_rest, all_loc, all_lb, all_rb = [], [], [], [], [], []
+    for sent, n in zip(seq, lens):
+        k = torch.randint(n, ())
+        keep, _ = torch.randperm(n)[:k].sort()
+        canvas, blanks, rest, loc, lb, rb = [], [], [], [], [], []
+        i = 0
+        while i < n:
+            if i in keep:
+                canvas.append(sent[i].item())
                 i += 1
-            lb += [0] + a[1:]
-            rb += a[:-1] + [0]
-            blanks.append(canvas.size(1))
-            canvas = torch.cat((canvas, ___), dim=1)
+            else:
+                a = []
+                while i < n and i not in keep:
+                    rest.append(i)
+                    loc.append(len(blanks))
+                    a.append(1)
+                    i += 1
+                lb += [0] + a[1:]
+                rb += a[:-1] + [0]
+                blanks.append(len(canvas))
+                canvas.append(vocab.blank)
+        for x, xs in zip([canvas, blanks, rest, loc, lb, rb],
+            [all_canvas, all_blanks, all_rest, all_loc, all_lb, all_rb]):
+            xs.append(x)
+
+    def to_tensor(xs, pad_id=-1, device=seq.device):
+        max_len = max([len(x) for x in xs])
+        xs_ = [x + [pad_id] * (max_len - len(x)) for x in xs]
+        return torch.tensor(xs_).to(device)
+
+    canvas = to_tensor(all_canvas, vocab.pad)
+    blanks = to_tensor(all_blanks)
+    rest   = to_tensor(all_rest)
+    loc    = to_tensor(all_loc)
+    lb     = to_tensor(all_lb)
+    rb     = to_tensor(all_rb)
     return canvas, blanks, rest, loc, lb, rb
+
+def collect(input, index, padding_idx=0):
+    """
+    Performs a batched index select where index is given for each example
+    Args:
+        input: tensor of shape (B, T_1, dim_2, dim_3, ...)
+        index: tensor of shape (B, T_2)
+    Returns:
+        tensor of shape (B, T_2, dim_2, dim_3, ...)
+    """
+    # Add a column of padding_idx at index 0 (of dim 1)
+    view = list(input.shape)
+    view[1] = 1
+    padding_column = input.new_ones(view) * padding_idx
+    input = torch.cat([padding_column, input], 1)
+
+    # Expand index to compatible size for gather
+    for i in range(2, len(input.shape)):
+        index = index.unsqueeze(i)
+
+    view[0] = -1
+    view[1] = -1
+    index = index.expand(view)
+    return torch.gather(input, 1, index + 1)
+
 
 class LM(nn.Module):
     """Language Model"""
@@ -61,10 +103,6 @@ class LM(nn.Module):
         self.vocab = vocab
         self.args = args
 
-        self.log_factorial = [0]
-        for i in range(1, args.max_len+1):
-            self.log_factorial.append(self.log_factorial[-1] + np.log(i))
-
         self.G = Encoder(
             n_src_vocab=vocab.size, len_max_seq=args.max_len,
             d_word_vec=args.d_model, d_model=args.d_model, d_inner=args.d_inner_hid,
@@ -72,6 +110,7 @@ class LM(nn.Module):
             dropout=args.dropout)
 
         self.word = nn.Linear(args.d_model, vocab.size, bias=False)
+        nn.init.xavier_normal_(self.word.weight)
         self.x_logit_scale = 1.
         if args.share_emb_prj_weight:
             self.word.weight = self.G.src_word_emb.weight
@@ -90,30 +129,41 @@ class LM(nn.Module):
         else:
             self.opt = LRScheduler(opt, args.lr)
 
-    def forward(self, canvas, blanks):
-        pos = torch.arange(canvas.size(1)).repeat(len(canvas), 1).to(canvas.device)
-        output, *_ = self.G(canvas, pos)
-        return output[:, blanks, :]
+    def forward(self, canvas):
+        pos = (1 + torch.arange(canvas.size(1))).repeat(len(canvas), 1)
+        pos[canvas == self.vocab.pad] = 0
+        output, *_ = self.G(canvas, pos.to(canvas.device))
+        return output
 
     def losses(self, seq):
-        n = seq.size(1)
-        k = np.random.randint(n)
-        keep = sorted(np.random.permutation(n)[:k])
-        canvas, blanks, rest, loc, lb, rb = get_canvas(seq, keep, self.vocab.blank)
-        output = self(canvas, blanks)
+        lens = seq.size(1) - (seq == self.vocab.pad).sum(1)
+        canvas, blanks, rest, loc, lb, rb = get_canvas(seq, lens, self.vocab)
+        count = (rest != -1).sum(1)
+        output = self(canvas)
+        output_blank = collect(output, blanks)
 
-        logits_loc = self.loc(output).squeeze(-1)
-        loss_loc = -F.log_softmax(logits_loc, dim=1)[:, loc].mean()
-        output_loc = output[:, loc, :]
+        logits_loc = self.loc(output_blank).squeeze(-1)
+        logits_loc[blanks == -1] = float('-inf')
+        nll_loc = -F.log_softmax(logits_loc, 1)
+        loss_loc = collect(nll_loc, loc)
+        loss_loc = loss_loc.sum(1) / count.float()
+        output_loc = collect(output_blank, loc)
 
         logits_word = self.word(output_loc) * self.x_logit_scale
-        loss_word = seq_cross_entropy(logits_word, seq[:, rest],
-            self.vocab.pad, self.args.label_smoothing)
-        output_loc_word = torch.cat((output_loc, self.G.src_word_emb(seq[:, rest])), dim=-1)
+        target = collect(seq, rest, self.vocab.pad)
+        loss_word = seq_cross_entropy(logits_word, target, self.vocab.pad,
+            self.args.label_smoothing)
+        loss_word = loss_word.sum(1) / count.float()
+        output_word = torch.cat((output_loc, self.G.src_word_emb(target)), -1)
 
-        logits_lrb = self.lrb(output_loc_word)
-        lrb = (torch.tensor(lb) * 2 + torch.tensor(rb)).to(canvas.device)
-        loss_lrb = F.cross_entropy(logits_lrb.view(-1, 4), lrb.repeat(len(canvas)))
+        logits_lrb = self.lrb(output_word)
+        loss_lrb = seq_cross_entropy(logits_lrb, lb * 2 + rb, -3)
+        loss_lrb = loss_lrb.sum(1) / count.float()
 
-        nll = (loss_loc + loss_word + loss_lrb) * n - self.log_factorial[n]
-        return {'nll': nll, 'loc': loss_loc, 'word': loss_word, 'lrb': loss_lrb}
+        loss = (loss_loc + loss_word + loss_lrb) * lens.float() - (lens + 1).float().lgamma()
+
+        return {'loss' : loss.mean(),
+                'loc'  : loss_loc.mean(),
+                'word' : loss_word.mean(),
+                'lrb'  : loss_lrb.mean()
+               }

@@ -141,7 +141,7 @@ def main(args):
             for k, v in losses.items():
                 meters[k].update(v.item())
                 losses[k] /= args.accum_grad
-            losses['nll'].backward()
+            losses['loss'].backward()
             index = (index + 1) % len(train_batches)
         model.opt.step()
 
@@ -157,8 +157,8 @@ def main(args):
             valid_meters = evaluate(model, device, valid_batches)
             model.train()
             ckpt = {'args': args, 'model': model.state_dict()}
-            if not best_val_loss or valid_meters['nll'].avg < best_val_loss:
-                best_val_loss = valid_meters['nll'].avg
+            if not best_val_loss or valid_meters['loss'].avg < best_val_loss:
+                best_val_loss = valid_meters['loss'].avg
                 torch.save(ckpt, os.path.join(args.save_dir, 'model_best.pt'))
             elif args.lr_schedule == 'reduce_on_plateau':
                 model.opt.lr /= args.lr_decay
