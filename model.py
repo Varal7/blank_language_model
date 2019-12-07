@@ -31,43 +31,50 @@ def seq_cross_entropy(pred, gold, pad, smoothing=False):
 
     return loss.view(gold_shape)
 
-def get_canvas(seq, lens, vocab):
-    all_canvas, all_blanks, all_rest, all_loc, all_lb, all_rb = [], [], [], [], [], []
+def get_canvas(sent, n, vocab):
+    device = sent.device
+    one = n.new_ones(1)
+
+    k = torch.randint(n, ()).to(device)
+    perm = torch.randperm(n).to(device)
+    keep, _ = perm[:k].sort()
+    rest, _ = perm[k:].sort()
+
+    keep_gap = (torch.cat((keep, one*n)) > torch.cat((-one, keep)) + 1).long()
+    ins_blank = keep_gap * (vocab.blank + 1) - 1   # 1 -> vocab.blank, 0 -> -1
+    canvas = torch.stack((ins_blank[:-1], sent[keep])).t().reshape(-1)
+    canvas = torch.cat((canvas, ins_blank[-1:]))    # interleave ins_blank and sent[keep]
+    canvas = canvas[canvas != -1]                   # remove -1
+    blanks = (canvas == vocab.blank).nonzero(as_tuple=True)[0]
+
+    rest_gap = (rest[1:] > rest[:-1] + 1).long()
+    loc = torch.cat((one*0, rest_gap)).cumsum(0)
+    lb = torch.cat((one*0, 1-rest_gap))
+    rb = torch.cat((1-rest_gap, one*0))
+
+    return canvas, blanks, rest, loc, lb, rb
+
+def get_canvas_batch(seq, lens, vocab):
+    canvas, blanks, rest, loc, lb, rb = [], [], [], [], [], []
     for sent, n in zip(seq, lens):
-        k = torch.randint(n, ())
-        keep, _ = torch.randperm(n)[:k].sort()
-        canvas, blanks, rest, loc, lb, rb = [], [], [], [], [], []
-        i = 0
-        while i < n:
-            if i in keep:
-                canvas.append(sent[i].item())
-                i += 1
-            else:
-                a = []
-                while i < n and i not in keep:
-                    rest.append(i)
-                    loc.append(len(blanks))
-                    a.append(1)
-                    i += 1
-                lb += [0] + a[1:]
-                rb += a[:-1] + [0]
-                blanks.append(len(canvas))
-                canvas.append(vocab.blank)
-        for x, xs in zip([canvas, blanks, rest, loc, lb, rb],
-            [all_canvas, all_blanks, all_rest, all_loc, all_lb, all_rb]):
-            xs.append(x)
+        ci, bi, ri, li, lbi, rbi = get_canvas(sent, n, vocab)
+        for xi, x in zip([ci, bi, ri, li, lbi, rbi],
+            [canvas, blanks, rest, loc, lb, rb]):
+            x.append(xi)
 
-    def to_tensor(xs, pad_id=-1, device=seq.device):
-        max_len = max([len(x) for x in xs])
-        xs_ = [x + [pad_id] * (max_len - len(x)) for x in xs]
-        return torch.tensor(xs_).to(device)
+    def pad_tensor(x, pad_id=-1):
+        max_len = max([len(xi) for xi in x])
+        for i in range(len(x)):
+            pad = x[i].new_ones(max_len - len(x[i])) * pad_id
+            x[i] = torch.cat((x[i], pad))
+        return torch.stack(x)
 
-    canvas = to_tensor(all_canvas, vocab.pad)
-    blanks = to_tensor(all_blanks)
-    rest   = to_tensor(all_rest)
-    loc    = to_tensor(all_loc)
-    lb     = to_tensor(all_lb)
-    rb     = to_tensor(all_rb)
+    canvas = pad_tensor(canvas, vocab.pad)
+    blanks = pad_tensor(blanks)
+    rest   = pad_tensor(rest)
+    loc    = pad_tensor(loc)
+    lb     = pad_tensor(lb)
+    rb     = pad_tensor(rb)
     return canvas, blanks, rest, loc, lb, rb
 
 def collect(input, index, padding_idx=0):
@@ -137,7 +144,7 @@ class LM(nn.Module):
 
     def losses(self, seq):
         lens = seq.size(1) - (seq == self.vocab.pad).sum(1)
-        canvas, blanks, rest, loc, lb, rb = get_canvas(seq, lens, self.vocab)
+        canvas, blanks, rest, loc, lb, rb = get_canvas_batch(seq, lens, self.vocab)
         count = (rest != -1).sum(1)
         output = self(canvas)
         output_blank = collect(output, blanks)
