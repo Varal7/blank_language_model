@@ -1,7 +1,8 @@
 import argparse
 import os
-import torch
 import numpy as np
+import torch
+import torch.nn.functional as F
 
 from vocab import Vocab
 from model import LM
@@ -54,9 +55,20 @@ def generate(seq):
         output = model(seq.unsqueeze(0), blanks)[0]
         loc = select(model.loc(output).squeeze(-1))
         output_loc = output[loc]
-        word = select(model.word(output_loc) * model.x_logit_scale)
-        output_loc_word = torch.cat((output_loc, model.G.src_word_emb(word)), dim=-1)
-        lrb = select(model.lrb(output_loc_word))
+
+        logits_word = model.word(output_loc) * model.x_logit_scale
+        lprob_word = F.log_softmax(logits_word, -1)
+        output_loc_word = torch.cat((output_loc.unsqueeze(0).expand(vocab.size, -1),
+            model.G.src_word_emb.weight), -1)
+        logits_lrb = model.lrb(output_loc_word)
+        lprob_lrb = F.log_softmax(logits_lrb, -1)
+        lprob_word_lrb = lprob_word.unsqueeze(1) + lprob_lrb
+        word_lrb = select(lprob_word_lrb.view(-1))
+        word, lrb = word_lrb / 4, word_lrb % 4
+
+        #word = select(model.word(output_loc) * model.x_logit_scale)
+        #output_loc_word = torch.cat((output_loc, model.G.src_word_emb(word)), dim=-1)
+        #lrb = select(model.lrb(output_loc_word))
         lb, rb = lrb / 2, lrb % 2
 
         ins = ([vocab.blank] if lb else []) + [word] + ([vocab.blank] if rb else [])
