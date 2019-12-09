@@ -6,6 +6,7 @@ import torch.optim as optim
 
 from transformer.Models import Encoder
 from transformer.Optim import *
+from meters import StopwatchMeter
 
 def seq_cross_entropy(pred, gold, pad, smoothing=False):
     ''' Calculate cross entropy loss, apply label smoothing if needed. '''
@@ -31,7 +32,8 @@ def seq_cross_entropy(pred, gold, pad, smoothing=False):
 
     return loss.view(gold_shape)
 
-def get_canvas(sent, n, vocab):
+def get_canvas(sent, n, vocab, timer):
+    timer.start()
     device = sent.device
     one = n.new_ones(1)
 
@@ -52,12 +54,13 @@ def get_canvas(sent, n, vocab):
     lb = torch.cat((one*0, 1-rest_gap))
     rb = torch.cat((1-rest_gap, one*0))
 
+    timer.stop()
     return canvas, blanks, rest, loc, lb, rb
 
-def get_canvas_batch(seq, lens, vocab):
+def get_canvas_batch(seq, lens, vocab, timer):
     res = [[], [], [], [], [], []]
     for sent, n in zip(seq, lens):
-        res_i = get_canvas(sent, n, vocab)
+        res_i = get_canvas(sent, n, vocab, timer)
         for xi, x in zip(res_i, res):
             x.append(xi)
 
@@ -132,6 +135,8 @@ class LM(nn.Module):
         else:
             self.opt = LRScheduler(opt, args.lr)
 
+        self.canvas_timer = StopwatchMeter()
+
     def forward(self, canvas):
         pos = (1 + torch.arange(canvas.size(1))).repeat(len(canvas), 1)
         pos[canvas == self.vocab.pad] = 0
@@ -140,7 +145,7 @@ class LM(nn.Module):
 
     def losses(self, seq):
         lens = seq.size(1) - (seq == self.vocab.pad).sum(1)
-        canvas, blanks, rest, loc, lb, rb = get_canvas_batch(seq, lens, self.vocab)
+        canvas, blanks, rest, loc, lb, rb = get_canvas_batch(seq, lens, self.vocab, self.canvas_timer)
         count = (rest != -1).sum(1)
         output = self(canvas)
         output_blank = collect(output, blanks)
