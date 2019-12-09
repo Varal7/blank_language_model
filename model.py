@@ -41,7 +41,7 @@ def get_canvas(sent, n, vocab):
     rest, _ = perm[k:].sort()
 
     keep_gap = (torch.cat((keep, one*n)) > torch.cat((-one, keep)) + 1).long()
-    ins_blank = keep_gap * (vocab.blank + 1) - 1   # 1 -> vocab.blank, 0 -> -1
+    ins_blank = keep_gap * (vocab.blank + 1) - 1    # 1 -> vocab.blank, 0 -> -1
     canvas = torch.stack((ins_blank[:-1], sent[keep])).t().reshape(-1)
     canvas = torch.cat((canvas, ins_blank[-1:]))    # interleave ins_blank and sent[keep]
     canvas = canvas[canvas != -1]                   # remove -1
@@ -55,11 +55,10 @@ def get_canvas(sent, n, vocab):
     return canvas, blanks, rest, loc, lb, rb
 
 def get_canvas_batch(seq, lens, vocab):
-    canvas, blanks, rest, loc, lb, rb = [], [], [], [], [], []
+    res = [[], [], [], [], [], []]
     for sent, n in zip(seq, lens):
-        ci, bi, ri, li, lbi, rbi = get_canvas(sent, n, vocab)
-        for xi, x in zip([ci, bi, ri, li, lbi, rbi],
-            [canvas, blanks, rest, loc, lb, rb]):
+        res_i = get_canvas(sent, n, vocab)
+        for xi, x in zip(res_i, res):
             x.append(xi)
 
     def pad_tensor(x, pad_id=-1):
@@ -69,13 +68,10 @@ def get_canvas_batch(seq, lens, vocab):
             x[i] = torch.cat((x[i], pad))
         return torch.stack(x)
 
-    canvas = pad_tensor(canvas, vocab.pad)
-    blanks = pad_tensor(blanks)
-    rest   = pad_tensor(rest)
-    loc    = pad_tensor(loc)
-    lb     = pad_tensor(lb)
-    rb     = pad_tensor(rb)
-    return canvas, blanks, rest, loc, lb, rb
+    pad = [vocab.pad, -1, -1, -1, -1, -1]
+    for i in range(len(res)):
+        res[i] = pad_tensor(res[i], pad[i])
+    return res
 
 def collect(input, index, padding_idx=0):
     """
