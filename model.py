@@ -32,20 +32,17 @@ def seq_cross_entropy(pred, gold, pad, smoothing=False):
 
     return loss.view(gold_shape)
 
-def get_canvas(sent, n, vocab, timer):
-    timer.start()
-    device = sent.device
+def get_canvas(seq, keep_mask, n, vocab):
+    device = seq.device
     one = n.new_ones(1)
 
-    k = torch.randint(n, ()).to(device)
-    perm = torch.randperm(n).to(device)
-    keep, _ = perm[:k].sort()
-    rest, _ = perm[k:].sort()
+    keep = keep_mask.nonzero(as_tuple=True)[0]
+    rest = (~keep_mask & (seq != vocab.pad)).nonzero(as_tuple=True)[0]
 
     keep_gap = (torch.cat((keep, one*n)) > torch.cat((-one, keep)) + 1).long()
     ins_blank = keep_gap * (vocab.blank + 1) - 1    # 1 -> vocab.blank, 0 -> -1
-    canvas = torch.stack((ins_blank[:-1], sent[keep])).t().reshape(-1)
-    canvas = torch.cat((canvas, ins_blank[-1:]))    # interleave ins_blank and sent[keep]
+    canvas = torch.stack((ins_blank[:-1], seq[keep])).t().reshape(-1)
+    canvas = torch.cat((canvas, ins_blank[-1:]))    # interleave ins_blank and seq[keep]
     canvas = canvas[canvas != -1]                   # remove -1
     blanks = (canvas == vocab.blank).nonzero(as_tuple=True)[0]
 
@@ -54,13 +51,23 @@ def get_canvas(sent, n, vocab, timer):
     lb = torch.cat((one*0, 1-rest_gap))
     rb = torch.cat((1-rest_gap, one*0))
 
-    timer.stop()
     return canvas, blanks, rest, loc, lb, rb
 
-def get_canvas_batch(seq, lens, vocab, timer):
+def get_canvas_batch(seq, n, vocab, timer):
+    timer.start()
+
+    k = (torch.rand_like(n.float()) * n.float()).long() # sample k from 0 to n-1
+    score = torch.rand_like(seq.float())    # keep k elements with the smallest scores
+    score.masked_fill_(seq == vocab.pad, 1) # don't keep pad
+    indices = score.argsort()
+    rank = torch.zeros_like(seq)
+    rank[torch.arange(len(seq)).unsqueeze(1), indices] = \
+        torch.arange(seq.size(1), device=seq.device)
+    keep_mask = (rank < k.unsqueeze(1))
+
     res = [[], [], [], [], [], []]
-    for sent, n in zip(seq, lens):
-        res_i = get_canvas(sent, n, vocab, timer)
+    for s_i, km_i, n_i in zip(seq, keep_mask, n):
+        res_i = get_canvas(s_i, km_i, n_i, vocab)
         for xi, x in zip(res_i, res):
             x.append(xi)
 
@@ -74,6 +81,8 @@ def get_canvas_batch(seq, lens, vocab, timer):
     pad = [vocab.pad, -1, -1, -1, -1, -1]
     for i in range(len(res)):
         res[i] = pad_tensor(res[i], pad[i])
+
+    timer.stop()
     return res
 
 def collect(input, index, padding_idx=0):
@@ -144,8 +153,8 @@ class LM(nn.Module):
         return output
 
     def losses(self, seq):
-        lens = seq.size(1) - (seq == self.vocab.pad).sum(1)
-        canvas, blanks, rest, loc, lb, rb = get_canvas_batch(seq, lens, self.vocab, self.canvas_timer)
+        n = seq.size(1) - (seq == self.vocab.pad).sum(1)
+        canvas, blanks, rest, loc, lb, rb = get_canvas_batch(seq, n, self.vocab, self.canvas_timer)
         count = (rest != -1).sum(1)
         output = self(canvas)
         output_blank = collect(output, blanks)
@@ -168,7 +177,7 @@ class LM(nn.Module):
         loss_lrb = seq_cross_entropy(logits_lrb, lb * 2 + rb, -3)
         loss_lrb = loss_lrb.sum(1) / count.float()
 
-        loss = (loss_loc + loss_word + loss_lrb) * lens.float() - (lens + 1).float().lgamma()
+        loss = (loss_loc + loss_word + loss_lrb) * n.float() - (n + 1).float().lgamma()
 
         return {'loss' : loss.mean(),
                 'loc'  : loss_loc.mean(),
