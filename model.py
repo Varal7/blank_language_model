@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+from torch.utils.cpp_extension import load
 
 from transformer.Models import Encoder
 from transformer.Optim import *
@@ -32,27 +33,6 @@ def seq_cross_entropy(pred, gold, pad, smoothing=False):
 
     return loss.view(gold_shape)
 
-def get_canvas(seq, keep_mask, n, vocab):
-    device = seq.device
-    one = n.new_ones(1)
-
-    keep = keep_mask.nonzero(as_tuple=True)[0]
-    rest = (~keep_mask & (seq != vocab.pad)).nonzero(as_tuple=True)[0]
-
-    keep_gap = (torch.cat((keep, one*n)) > torch.cat((-one, keep)) + 1).long()
-    ins_blank = keep_gap * (vocab.blank + 1) - 1    # 1 -> vocab.blank, 0 -> -1
-    canvas = torch.stack((ins_blank[:-1], seq[keep])).t().reshape(-1)
-    canvas = torch.cat((canvas, ins_blank[-1:]))    # interleave ins_blank and seq[keep]
-    canvas = canvas[canvas != -1]                   # remove -1
-    blanks = (canvas == vocab.blank).nonzero(as_tuple=True)[0]
-
-    rest_gap = (rest[1:] > rest[:-1] + 1).long()
-    loc = torch.cat((one*0, rest_gap)).cumsum(0)
-    lb = torch.cat((one*0, 1-rest_gap))
-    rb = torch.cat((1-rest_gap, one*0))
-
-    return canvas, blanks, rest, loc, lb, rb
-
 def get_canvas_batch(seq, n, vocab, timer):
     timer.start()
 
@@ -65,22 +45,21 @@ def get_canvas_batch(seq, n, vocab, timer):
         torch.arange(seq.size(1), device=seq.device)
     keep_mask = (rank < k.unsqueeze(1))
 
+    cpp = load(name="get_canvas_cpp", sources=["get_canvas.cpp"])
     res = [[], [], [], [], [], []]
     for s_i, km_i, n_i in zip(seq, keep_mask, n):
-        res_i = get_canvas(s_i, km_i, n_i, vocab)
+        res_i = cpp.get_canvas(s_i.tolist(), km_i.tolist(), n_i.item(), vocab.blank)
         for xi, x in zip(res_i, res):
             x.append(xi)
 
-    def pad_tensor(x, pad_id=-1):
+    def to_tensor(x, pad_id, device):
         max_len = max([len(xi) for xi in x])
-        for i in range(len(x)):
-            pad = x[i].new_ones(max_len - len(x[i])) * pad_id
-            x[i] = torch.cat((x[i], pad))
-        return torch.stack(x)
+        x_ = [xi + [pad_id] * (max_len - len(xi)) for xi in x]
+        return torch.tensor(x_).to(device)
 
     pad = [vocab.pad, -1, -1, -1, -1, -1]
     for i in range(len(res)):
-        res[i] = pad_tensor(res[i], pad[i])
+        res[i] = to_tensor(res[i], pad[i], seq.device)
 
     timer.stop()
     return res
