@@ -33,9 +33,12 @@ def seq_cross_entropy(pred, gold, pad, smoothing=False):
 
     return loss.view(gold_shape)
 
-def get_canvas_batch(seq, n, vocab, timer):
-    timer.start()
+def to_tensor(x, pad_id, device):
+    max_len = max([len(xi) for xi in x])
+    x_ = [xi + [pad_id] * (max_len - len(xi)) for xi in x]
+    return torch.tensor(x_).to(device)
 
+def create_canvas(seq, n, vocab):
     k = (torch.rand_like(n.float()) * n.float()).long() # sample k from 0 to n-1
     score = torch.rand_like(seq.float())    # keep k elements with the smallest scores
     score.masked_fill_(seq == vocab.pad, 1) # don't keep pad
@@ -45,23 +48,12 @@ def get_canvas_batch(seq, n, vocab, timer):
         torch.arange(seq.size(1), device=seq.device)
     keep_mask = (rank < k.unsqueeze(1))
 
-    cpp = load(name="get_canvas_cpp", sources=["get_canvas.cpp"])
-    res = [[], [], [], [], [], []]
-    for s_i, km_i, n_i in zip(seq, keep_mask, n):
-        res_i = cpp.get_canvas(s_i.tolist(), km_i.tolist(), n_i.item(), vocab.blank)
-        for xi, x in zip(res_i, res):
-            x.append(xi)
-
-    def to_tensor(x, pad_id, device):
-        max_len = max([len(xi) for xi in x])
-        x_ = [xi + [pad_id] * (max_len - len(xi)) for xi in x]
-        return torch.tensor(x_).to(device)
+    get_canvas_cpp = load(name="get_canvas_cpp", sources=["get_canvas.cpp"])
+    res = get_canvas_cpp.get_canvas(seq.tolist(), keep_mask.tolist(), n.tolist(), vocab.blank)
 
     pad = [vocab.pad, -1, -1, -1, -1, -1]
     for i in range(len(res)):
         res[i] = to_tensor(res[i], pad[i], seq.device)
-
-    timer.stop()
     return res
 
 def collect(input, index, padding_idx=0):
@@ -123,8 +115,6 @@ class LM(nn.Module):
         else:
             self.opt = LRScheduler(opt, args.lr)
 
-        self.canvas_timer = StopwatchMeter()
-
     def forward(self, canvas):
         pos = (1 + torch.arange(canvas.size(1))).repeat(len(canvas), 1)
         pos[canvas == self.vocab.pad] = 0
@@ -133,7 +123,7 @@ class LM(nn.Module):
 
     def losses(self, seq):
         n = seq.size(1) - (seq == self.vocab.pad).sum(1)
-        canvas, blanks, rest, loc, lb, rb = get_canvas_batch(seq, n, self.vocab, self.canvas_timer)
+        canvas, blanks, rest, loc, lb, rb = create_canvas(seq, n, self.vocab)
         count = (rest != -1).sum(1)
         output = self(canvas)
         output_blank = collect(output, blanks)

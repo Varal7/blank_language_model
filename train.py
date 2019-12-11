@@ -151,8 +151,6 @@ def main(args):
                 log += ' {} {:.2f},'.format(k, meter.avg)
                 meter.clear()
             logging(log, log_file)
-            print('time of canvas / total: {:.0f} / {:.0f}'.format(
-                model.canvas_timer.sum, time.time() - start_time))
 
         if step % args.checkpoint_every == 0:
             logging('-' * 80, log_file)
