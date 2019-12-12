@@ -88,7 +88,7 @@ if __name__ == '__main__':
     out_path = os.path.join(args.checkpoint, args.output)
 
     if args.eval:
-        sents = load_sent(args.eval)
+        sents = load_sent(args.eval, model.args.max_len, model.args.multisent)
         n_words = sum(len(s) + 1 for s in sents)    # include <eos>
         batches, _ = get_batches(sents, vocab, args.batch_size)
         meters = evaluate(model, device, batches)

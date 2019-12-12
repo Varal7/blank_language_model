@@ -18,6 +18,9 @@ parser.add_argument('--train', metavar='FILE', required=True,
                     help='path to training file')
 parser.add_argument('--valid', metavar='FILE', required=True,
                     help='path to validation file')
+parser.add_argument('--multisent', action='store_true',
+                    help='in the presence of context, concatenate multiple '
+                         'sentences totaling up to max_len tokens')
 parser.add_argument('--save_dir', default='checkpoints', metavar='DIR',
                     help='directory to save checkpoints and outputs')
 parser.add_argument('--load_model', default='', metavar='FILE',
@@ -102,8 +105,8 @@ def main(args):
     logging(str(args), log_file)
 
     # Prepare data
-    train_sents = load_sent(args.train)
-    valid_sents = load_sent(args.valid)
+    train_sents = load_sent(args.train, args.max_len, args.multisent)
+    valid_sents = load_sent(args.valid, args.max_len, args.multisent)
     vocab_file = os.path.join(args.save_dir, 'vocab.txt')
     if not os.path.isfile(vocab_file):
         Vocab.build(train_sents, vocab_file, args.vocab_size)

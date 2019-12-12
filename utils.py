@@ -13,12 +13,29 @@ def strip_eos(sents):
     return [sent[:sent.index('<eos>')] if '<eos>' in sent else sent
         for sent in sents]
 
-def load_sent(path):
+def merge(sents, max_len):
+    data = []
+    i = 0
+    while i < len(sents):
+        sent = sents[i]
+        i += 1
+        while i < len(sents) and len(sent) + len(sents[i]) < max_len:
+            sent += ['<eos>'] + sents[i]
+            i += 1
+        data.append(sent)
+    return data
+
+def load_sent(path, max_len=np.inf, multisent=False):
     sents = []
     with open(path) as f:
         for line in f:
-            sents.append(line.split())
-    return sents
+            words = line.split()
+            if len(words) <= max_len:
+                sents.append(words)
+    if multisent:
+        return merge(sents, max_len)
+    else:
+        return sents
 
 def write_sent(sents, path):
     with open(path, 'w') as f:
