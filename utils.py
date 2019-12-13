@@ -25,17 +25,14 @@ def merge(sents, max_len):
         data.append(sent)
     return data
 
-def load_sent(path, max_len=np.inf, multisent=False):
+def load_sent(path, multisent=-1):
     sents = []
     with open(path) as f:
         for line in f:
-            words = line.split()
-            if len(words) <= max_len:
-                sents.append(words)
-    if multisent:
-        return merge(sents, max_len)
-    else:
+            sents.append(line.split())
+    if multisent == -1:
         return sents
+    return merge(sents, multisent)
 
 def write_sent(sents, path):
     with open(path, 'w') as f:

@@ -88,7 +88,7 @@ if __name__ == '__main__':
     out_path = os.path.join(args.checkpoint, args.output)
 
     if args.eval:
-        sents = load_sent(args.eval, model.args.max_len, model.args.multisent)
+        sents = load_sent(args.eval, model.args.multisent)
         batches, _ = get_batches(sents, vocab, args.batch_size)
         meters = evaluate(model, device, batches)
         print(' '.join(['{} {:.2f},'.format(k, meter.avg)
