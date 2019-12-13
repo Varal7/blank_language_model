@@ -14,11 +14,8 @@ def get_batches(data, vocab, batch_size):
     z = sorted(zip(order, data), key=lambda i: len(i[1]))
     order, data = zip(*z)
 
-    batches = []
-    i = 0
-    while i < len(data):
-        batches.append(get_batch(data[i: i+batch_size], vocab))
-        i += batch_size
+    batches = [get_batch(data[i: i+batch_size], vocab) \
+        for i in range(0, len(data), batch_size)]
     return batches, order
 
 '''

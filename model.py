@@ -146,10 +146,8 @@ class LM(nn.Module):
         loss_lrb = loss_lrb.sum(1) / count.float()
 
         nll = (loss_loc + loss_word + loss_lrb) * n.float() - (n + 1).float().lgamma()
-        loss = nll / (n + 1).float() # per word loss, include <eos>
 
-        return {'loss' : loss.mean(),
-                'nll'  : nll.mean(),
+        return {'loss' : nll.sum() / n.sum(),
                 'loc'  : loss_loc.mean(),
                 'word' : loss_word.mean(),
                 'lrb'  : loss_lrb.mean()

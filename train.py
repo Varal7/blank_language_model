@@ -9,7 +9,7 @@ import torch
 from model import LM
 from vocab import Vocab
 from meters import AverageMeter
-from utils import set_seed, logging, load_sent
+from utils import set_seed, logging, load_data
 from batchify import get_batches
 
 parser = argparse.ArgumentParser()
@@ -23,13 +23,13 @@ parser.add_argument('--save_dir', default='checkpoints', metavar='DIR',
 parser.add_argument('--load_model', default='', metavar='FILE',
                     help='path to load checkpoint if specified')
 
+parser.add_argument('--doc', action='store_true',
+                    help='if data has document structure, concatenate sentences'
+                         ' and chunk them into size of max_len')
 parser.add_argument('--vocab_size', type=int, default=10000, metavar='N',
                     help='keep N most frequent words in vocabulary')
 parser.add_argument('--max_len', type=int, default=50, metavar='N',
                     help='max sequence length')
-parser.add_argument('--multisent', type=int, default=-1, metavar='N',
-                    help='concatenate multiple sentences totaling up to N tokens'
-                         'default -1: no concatenate')
 parser.add_argument('--d_model', type=int, default=512, metavar='N',
                     help='transformer dimension d_model')
 parser.add_argument('--d_inner_hid', type=int, default=2048, metavar='N',
@@ -91,15 +91,17 @@ parser.add_argument('--no_cuda', action='store_true',
 def evaluate(model, device, batches):
     model.eval()
     meters = collections.defaultdict(lambda: AverageMeter())
+    total_loss = 0.
     n_words = 0
     with torch.no_grad():
         for batch in batches:
             seq, n = map(lambda x: x.to(device), batch)
             losses = model.losses(seq, n)
             for k, v in losses.items():
-                meters[k].update(v.item(), len(seq))
-            n_words += (n + 1).sum().item()
-    meters['ppl'].update(np.exp(meters['nll'].sum / n_words))
+                meters[k].update(v.item())
+            total_loss += (losses['loss'] * n.sum()).item()
+            n_words += n.sum().item()
+    meters['ppl'].update(np.exp(total_loss / n_words))
     return meters
 
 def main(args):
@@ -109,8 +111,8 @@ def main(args):
     logging(str(args), log_file)
 
     # Prepare data
-    train_sents = load_sent(args.train, args.multisent)
-    valid_sents = load_sent(args.valid, args.multisent)
+    train_sents = load_data(args.train, args.doc, args.max_len)
+    valid_sents = load_data(args.valid, args.doc, args.max_len)
     vocab_file = os.path.join(args.save_dir, 'vocab.txt')
     if not os.path.isfile(vocab_file):
         Vocab.build(train_sents, vocab_file, args.vocab_size)
@@ -118,9 +120,9 @@ def main(args):
     train_batches, _ = get_batches(train_sents, vocab, args.batch_size)
     valid_batches, _ = get_batches(valid_sents, vocab, args.batch_size)
     logging('# train sents {}, tokens {}, batches {}'.format(len(train_sents),
-        sum(len(s) + 1 for s in train_sents), len(train_batches)), log_file)
+        sum(len(s) for s in train_sents), len(train_batches)), log_file)
     logging('# valid sents {}, tokens {}, batches {}'.format(len(valid_sents),
-        sum(len(s) + 1 for s in valid_sents), len(valid_batches)), log_file)
+        sum(len(s) for s in valid_sents), len(valid_batches)), log_file)
     logging('# vocab size {}'.format(vocab.size), log_file)
 
     set_seed(args.seed)
