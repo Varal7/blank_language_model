@@ -139,7 +139,7 @@ def main(args):
     random.shuffle(train_batches)
     model.train()
     meters = collections.defaultdict(lambda: AverageMeter())
-    best_val_loss = None
+    best_val_ppl = None
     index = 0
     for step in range(1, 1 + args.train_steps):
         model.opt.zero_grad()
@@ -165,8 +165,8 @@ def main(args):
             valid_meters = evaluate(model, device, valid_batches)
             model.train()
             ckpt = {'args': args, 'model': model.state_dict()}
-            if not best_val_loss or valid_meters['loss'].avg < best_val_loss:
-                best_val_loss = valid_meters['loss'].avg
+            if not best_val_ppl or valid_meters['ppl'].avg < best_val_ppl:
+                best_val_ppl = valid_meters['ppl'].avg
                 torch.save(ckpt, os.path.join(args.save_dir, 'model_best.pt'))
             elif args.lr_schedule == 'reduce_on_plateau':
                 model.opt.lr /= args.lr_decay
@@ -176,7 +176,7 @@ def main(args):
                 step, time.time() - start_time, model.opt.lr)
             for k, meter in valid_meters.items():
                 log += ' {} {:.2f},'.format(k, meter.avg)
-            log += ' | best {:.2f}'.format(best_val_loss)
+            log += ' | best {:.2f}'.format(best_val_ppl)
             logging(log, log_file)
             logging('-' * 80, log_file)
 
