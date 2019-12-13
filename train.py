@@ -91,11 +91,15 @@ parser.add_argument('--no_cuda', action='store_true',
 def evaluate(model, device, batches):
     model.eval()
     meters = collections.defaultdict(lambda: AverageMeter())
+    n_words = 0
     with torch.no_grad():
         for batch in batches:
-            losses = model.losses(batch.to(device))
+            seq, n = map(lambda x: x.to(device), batch)
+            losses = model.losses(seq, n)
             for k, v in losses.items():
-                meters[k].update(v.item(), len(batch))
+                meters[k].update(v.item(), len(seq))
+            n_words += (n + 1).sum().item()
+    meters['ppl'].update(np.exp(meters['nll'].sum / n_words))
     return meters
 
 def main(args):
@@ -114,9 +118,9 @@ def main(args):
     train_batches, _ = get_batches(train_sents, vocab, args.batch_size)
     valid_batches, _ = get_batches(valid_sents, vocab, args.batch_size)
     logging('# train sents {}, tokens {}, batches {}'.format(len(train_sents),
-        sum(len(s) for s in train_sents), len(train_batches)), log_file)
+        sum(len(s) + 1 for s in train_sents), len(train_batches)), log_file)
     logging('# valid sents {}, tokens {}, batches {}'.format(len(valid_sents),
-        sum(len(s) for s in valid_sents), len(valid_batches)), log_file)
+        sum(len(s) + 1 for s in valid_sents), len(valid_batches)), log_file)
     logging('# vocab size {}'.format(vocab.size), log_file)
 
     set_seed(args.seed)
@@ -140,7 +144,8 @@ def main(args):
     for step in range(1, 1 + args.train_steps):
         model.opt.zero_grad()
         for _ in range(args.accum_grad):
-            losses = model.losses(train_batches[index].to(device))
+            seq, n = map(lambda x: x.to(device), train_batches[index])
+            losses = model.losses(seq, n)
             for k, v in losses.items():
                 meters[k].update(v.item())
                 losses[k] /= args.accum_grad

@@ -1,12 +1,13 @@
 import torch
 
 def get_batch(x, vocab):
-    batch_seq = []
-    max_len = max([len(s) for s in x])
-    for s in x:
+    seq = []
+    n = [len(s) for s in x]
+    max_len = max(n)
+    for s, l in zip(x, n):
         s_idx = [vocab.word2idx[w] if w in vocab.word2idx else vocab.unk for w in s]
-        batch_seq.append(s_idx + [vocab.pad] * (max_len - len(s)))
-    return torch.LongTensor(batch_seq)
+        seq.append(s_idx + [vocab.pad] * (max_len - l))
+    return torch.LongTensor(seq), torch.LongTensor(n)
 
 def get_batches(data, vocab, batch_size):
     order = range(len(data))

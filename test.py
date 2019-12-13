@@ -89,13 +89,10 @@ if __name__ == '__main__':
 
     if args.eval:
         sents = load_sent(args.eval, model.args.max_len, model.args.multisent)
-        n_words = sum(len(s) + 1 for s in sents)    # include <eos>
         batches, _ = get_batches(sents, vocab, args.batch_size)
         meters = evaluate(model, device, batches)
-        ppl = np.exp(meters['loss'].avg * len(sents) / n_words)
         print(' '.join(['{} {:.2f},'.format(k, meter.avg)
             for k, meter in meters.items()]))
-        print('ppl {:.2f}'.format(ppl))
 
     if args.sample:
         sents = [generate([vocab.blank]) for _ in range(args.sample)]

@@ -121,8 +121,7 @@ class LM(nn.Module):
         output, *_ = self.G(canvas, pos.to(canvas.device))
         return output
 
-    def losses(self, seq):
-        n = seq.size(1) - (seq == self.vocab.pad).sum(1)
+    def losses(self, seq, n):
         canvas, blanks, rest, loc, lb, rb = create_canvas(seq, n, self.vocab)
         count = (rest != -1).sum(1)
         output = self(canvas)
@@ -146,9 +145,11 @@ class LM(nn.Module):
         loss_lrb = seq_cross_entropy(logits_lrb, lb * 2 + rb, -3)
         loss_lrb = loss_lrb.sum(1) / count.float()
 
-        loss = (loss_loc + loss_word + loss_lrb) * n.float() - (n + 1).float().lgamma()
+        nll = (loss_loc + loss_word + loss_lrb) * n.float() - (n + 1).float().lgamma()
+        loss = nll / (n + 1).float() # per word loss, include <eos>
 
         return {'loss' : loss.mean(),
+                'nll'  : nll.mean(),
                 'loc'  : loss_loc.mean(),
                 'word' : loss_word.mean(),
                 'lrb'  : loss_lrb.mean()
