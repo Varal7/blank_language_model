@@ -52,7 +52,7 @@ parser.add_argument('--adam_betas', default='(0.9, 0.999)', metavar='(R, R)',
                     help='adam betas')
 parser.add_argument('--adam_eps', type=float, default=1e-8, metavar='R',
                     help='adam eps')
-parser.add_argument('--weight_decay', type=float, default=0.01, metavar='R',
+parser.add_argument('--weight_decay', type=float, default=0.0001, metavar='R',
                     help='weight decay')
 parser.add_argument('--dropout', type=float, default=0.1, metavar='P',
                     help='dropout probability (0 = no dropout)')
@@ -67,19 +67,19 @@ parser.add_argument('--lr_decay', type=float, default=4, metavar='R',
                     help='learning rate decay factor (reduce_on_plateau)')
 parser.add_argument('--warmup_steps', type=int, default=4000, metavar='N',
                     help='number of warmup steps (inverse_sqrt)')
-parser.add_argument('--train_steps', type=int, default=200000, metavar='N',
+parser.add_argument('--train_steps', type=int, default=300000, metavar='N',
                     help='number of training steps')
 #parser.add_argument('--epochs', type=int, default=30, metavar='N',
 #                    help='number of training epochs')
 
-parser.add_argument('--batch_size', type=int, default=64, metavar='N',
+parser.add_argument('--batch_size', type=int, default=128, metavar='N',
                     help='batch size')
 #parser.add_argument('--max_tokens', type=int, default=4000, metavar='N',
 #                    help='max number of tokens per batch')
 parser.add_argument('--accum_grad', type=int, default=1, metavar='N',
                     help='accumulate gradients across N minibatches.')
 
-parser.add_argument('--checkpoint_every', type=int, default=5000, metavar='N',
+parser.add_argument('--checkpoint_every', type=int, default=1000, metavar='N',
                     help='save checkpoint every N steps')
 parser.add_argument('--log_every', type=int, default=100, metavar='N',
                     help='report loss every N steps')
@@ -91,17 +91,16 @@ parser.add_argument('--no_cuda', action='store_true',
 def evaluate(model, device, batches):
     model.eval()
     meters = collections.defaultdict(lambda: AverageMeter())
-    total_loss = 0.
-    n_words = 0
     with torch.no_grad():
         for batch in batches:
             seq, n = map(lambda x: x.to(device), batch)
             losses = model.losses(seq, n)
             for k, v in losses.items():
-                meters[k].update(v.item())
-            total_loss += (losses['loss'] * n.sum()).item()
-            n_words += n.sum().item()
-    meters['ppl'].update(np.exp(total_loss / n_words))
+                if k == 'loss':
+                    meters[k].update(v.item(), n.sum().item())
+                else:
+                    meters[k].update(v.item(), len(n))
+    meters['ppl'].update(np.exp(meters['loss'].avg))
     return meters
 
 def main(args):
