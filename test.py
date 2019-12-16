@@ -6,11 +6,12 @@ import torch.nn.functional as F
 
 from vocab import Vocab
 from model import LM
-from utils import *
+from utils import set_seed, load_data, load_sent
 from batchify import get_batches
 from train import evaluate
 
 parser = argparse.ArgumentParser()
+
 parser.add_argument('--checkpoint', metavar='DIR', required=True,
                     help='checkpoint directory')
 parser.add_argument('--model', default='model_best.pt', metavar='FILE',
@@ -39,22 +40,30 @@ parser.add_argument('--seed', type=int, default=1111, metavar='N',
                     help='random seed')
 parser.add_argument('--no_cuda', action='store_true',
                     help='disable CUDA')
-args = parser.parse_args()
 
-def select(logits):
-    if args.decode == 'sample':
+def get_model(path, vocab, device):
+    print('Load model from {}'.format(path))
+    ckpt = torch.load(path)
+    train_args = ckpt['args']
+    model = LM(vocab, train_args).to(device)
+    model.load_state_dict(ckpt['model'])
+    model.eval()
+    return model
+
+def select(logits, decode):
+    if decode == 'sample':
         return torch.multinomial(logits.exp(), num_samples=1)[0]
     else:
         return logits.argmax()
 
-def generate(seq):
+def generate(seq, model, vocab, device, decode):
     seq = torch.LongTensor(seq).to(device)
     blanks = [i for i, w in enumerate(seq) if w == vocab.blank]
-    sent_mid = [[vocab.idx2word[id] for id in seq]]
+    res = [[vocab.idx2word[id] for id in seq]]
     while len(blanks) > 0 and len(seq) <= model.args.max_len:
         output = model(seq.unsqueeze(0))[0]
         output_blank = output[blanks]
-        loc = select(model.loc(output_blank).squeeze(-1))
+        loc = select(model.loc(output_blank).squeeze(-1), decode)
         output_loc = output_blank[loc]
 
         # joint word, lrb prediction
@@ -65,13 +74,13 @@ def generate(seq):
         logits_lrb = model.lrb(output_word)
         lprob_lrb = F.log_softmax(logits_lrb, -1)
         lprob_word_lrb = lprob_word.unsqueeze(1) + lprob_lrb
-        word_lrb = select(lprob_word_lrb.view(-1))
+        word_lrb = select(lprob_word_lrb.view(-1), decode)
         word, lrb = word_lrb / 4, word_lrb % 4
 
         # predict word first and then lrb
-        #word = select(model.word(output_loc) * model.x_logit_scale)
+        #word = select(model.word(output_loc) * model.x_logit_scale, decode)
         #output_word = torch.cat((output_loc, model.G.src_word_emb(word)), dim=-1)
-        #lrb = select(model.lrb(output_word))
+        #lrb = select(model.lrb(output_word), decode)
 
         lb, rb = lrb / 2, lrb % 2
         ins = ([vocab.blank] if lb else []) + [word] + ([vocab.blank] if rb else [])
@@ -79,10 +88,18 @@ def generate(seq):
         pos = blanks[loc]
         seq = torch.cat((seq[:pos], ins, seq[pos+1:]))
         blanks = [i for i, w in enumerate(seq) if w == vocab.blank]
-        sent_mid.append([vocab.idx2word[id] for id in seq])
-    return sent_mid
+        res.append([vocab.idx2word[id] for id in seq])
+    return res
 
-if __name__ == '__main__':
+def write(file, res, write_mid):
+    if write_mid:
+        for x in res:
+            file.write(' '.join(x) + '\n')
+        file.write('\n')
+    else:
+        file.write(' '.join(res[-1]) + '\n')
+
+def main(args):
     set_seed(args.seed)
     vocab = Vocab(os.path.join(args.checkpoint, args.vocab))
     cuda = not args.no_cuda and torch.cuda.is_available()
@@ -98,12 +115,20 @@ if __name__ == '__main__':
             for k, meter in meters.items()]))
 
     if args.sample:
-        sents = [generate([vocab.blank]) for _ in range(args.sample)]
-        write_mid_or_last(sents, args.write_mid, out_path)
+        with open(out_path, 'w') as f:
+            for _ in range(args.sample):
+                res = generate([vocab.blank], model, vocab, device, args.decode)
+                write(f, res, args.write_mid)
 
     if args.fill:
         sents = load_sent(args.fill)
         sents = [[vocab.word2idx[w] if w in vocab.word2idx else vocab.unk
             for w in s] for s in sents]
-        sents = [generate(s) for s in sents]
-        write_mid_or_last(sents, args.write_mid, out_path)
+        with open(out_path, 'w') as f:
+            for s in sents:
+                res = generate(s, model, vocab, device, args.decode)
+                write(f, res, args.write_mid)
+
+if __name__ == '__main__':
+    args = parser.parse_args()
+    main(args)
