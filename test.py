@@ -99,7 +99,8 @@ def write(file, res, write_mid):
     else:
         file.write(' '.join(res[-1]) + '\n')
 
-def main(args):
+def main():
+    args = parser.parse_args()
     set_seed(args.seed)
     vocab = Vocab(os.path.join(args.checkpoint, args.vocab))
     cuda = not args.no_cuda and torch.cuda.is_available()
@@ -130,5 +131,4 @@ def main(args):
                 write(f, res, args.write_mid)
 
 if __name__ == '__main__':
-    args = parser.parse_args()
-    main(args)
+    main()

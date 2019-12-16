@@ -103,7 +103,8 @@ def evaluate(model, device, batches):
     meters['ppl'].update(np.exp(meters['loss'].avg))
     return meters
 
-def main(args):
+def main():
+    args = parser.parse_args()
     if not os.path.exists(args.save_dir):
         os.makedirs(args.save_dir)
     log_file = os.path.join(args.save_dir, 'log.txt')
@@ -182,5 +183,4 @@ def main(args):
             logging('-' * 80, log_file)
 
 if __name__ == '__main__':
-    args = parser.parse_args()
-    main(args)
+    main()
