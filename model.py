@@ -9,6 +9,8 @@ from transformer.Models import Encoder
 from transformer.Optim import *
 from meters import StopwatchMeter
 
+get_canvas_cpp = load(name="get_canvas_cpp", sources=["get_canvas.cpp"])
+
 def seq_cross_entropy(pred, gold, pad, smoothing=False):
     ''' Calculate cross entropy loss, apply label smoothing if needed. '''
 
@@ -38,19 +40,17 @@ def to_tensor(x, pad_id, device):
     x_ = [xi + [pad_id] * (max_len - len(xi)) for xi in x]
     return torch.tensor(x_).to(device)
 
-def create_canvas(seq, n, vocab):
-    k = (torch.rand_like(n.float()) * n.float()).long() # sample k from 0 to n-1
-    score = torch.rand_like(seq.float())    # keep k elements with the smallest scores
-    score.masked_fill_(seq == vocab.pad, 1) # don't keep pad
+def sample_permutation(seq, pad_id):
+    score = torch.rand_like(seq.float())
+    score.masked_fill_(seq == pad_id, 1) # always put pads last
     indices = score.argsort()
     rank = torch.zeros_like(seq)
     rank[torch.arange(len(seq)).unsqueeze(1), indices] = \
         torch.arange(seq.size(1), device=seq.device)
-    keep_mask = (rank < k.unsqueeze(1))
+    return rank
 
-    get_canvas_cpp = load(name="get_canvas_cpp", sources=["get_canvas.cpp"])
-    res = get_canvas_cpp.get_canvas(seq.tolist(), keep_mask.tolist(), n.tolist(), vocab.blank)
-
+def get_canvas(seq, keep, n, vocab):
+    res = get_canvas_cpp.get_canvas(seq.tolist(), keep.tolist(), n.tolist(), vocab.blank)
     pad = [vocab.pad, -1, -1, -1, -1, -1]
     for i in range(len(res)):
         res[i] = to_tensor(res[i], pad[i], seq.device)
@@ -121,8 +121,7 @@ class LM(nn.Module):
         output, *_ = self.G(canvas, pos.to(canvas.device))
         return output
 
-    def losses(self, seq, n):
-        canvas, blanks, rest, loc, lb, rb = create_canvas(seq, n, self.vocab)
+    def get_loss(self, seq, canvas, blanks, rest, loc, lb, rb):
         count = (rest != -1).sum(1)
         output = self(canvas)
         output_blank = collect(output, blanks)
@@ -145,10 +144,36 @@ class LM(nn.Module):
         loss_lrb = seq_cross_entropy(logits_lrb, lb * 2 + rb, -3)
         loss_lrb = loss_lrb.sum(1) / count.float()
 
-        nll = (loss_loc + loss_word + loss_lrb) * n.float() - (n + 1).float().lgamma()
+        return loss_loc, loss_word, loss_lrb
 
-        return {'loss' : nll.sum() / n.sum(),
+    def losses(self, seq, n):
+        k = (torch.rand_like(n.float()) * n.float()).long() # sample k from 0 to n-1
+        rank = sample_permutation(seq, self.vocab.pad)
+        keep = (rank < k.unsqueeze(1))
+        canvas, blanks, rest, loc, lb, rb = get_canvas(seq, keep, n, self.vocab)
+        loss_loc, loss_word, loss_lrb = self.get_loss(seq, canvas, blanks, rest, loc, lb, rb)
+        nll_lb = (loss_loc + loss_word + loss_lrb) * n.float() - (n + 1).float().lgamma()
+        return {'loss' : nll_lb.sum() / n.sum(),
                 'loc'  : loss_loc.mean(),
                 'word' : loss_word.mean(),
                 'lrb'  : loss_lrb.mean()
                }
+
+    def nll_mc(self, seq, n, m):
+        """Compute negative log-likelihood by monte carlo estimate
+           m: number of samples to take
+        """
+        a = []
+        for _ in range(m):
+            rank = sample_permutation(seq, self.vocab.pad)
+            for k in range(seq.size(1)):
+                if k == 25:
+                    import pdb; pdb.set_trace()
+                keep = (rank < k)
+                canvas, blanks, rest, loc, lb, rb = get_canvas(seq, keep, n, self.vocab)
+                k_th = (rank == k).nonzero(as_tuple=True)[1]
+                x, y = (rest == k_th.unsqueeze(1)).nonzero(as_tuple=True)
+                rest = rest[x, y].unsqueeze(1)
+                loc = loc[x, y].unsqueeze(1)
+                lb = lb[x, y].unsqueeze(1)
+                rb = rb[x, y].unsqueeze(1)

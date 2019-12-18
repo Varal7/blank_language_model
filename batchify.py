@@ -9,13 +9,19 @@ def get_batch(x, vocab):
         seq.append(s_idx + [vocab.pad] * (max_len - l))
     return torch.LongTensor(seq), torch.LongTensor(n)
 
-def get_batches(data, vocab, batch_size):
+def get_batches(data, vocab, batch_size, same_len=False):
     order = range(len(data))
     z = sorted(zip(order, data), key=lambda i: len(i[1]))
     order, data = zip(*z)
 
-    batches = [get_batch(data[i: i+batch_size], vocab) \
-        for i in range(0, len(data), batch_size)]
+    batches = []
+    i = 0
+    while i < len(data):
+        j = i
+        while j < min(len(data), i+batch_size) and (not same_len or (data[j]) == len(data[i])):
+            j += 1
+        batches.append(get_batch(data[i: j], vocab))
+        i = j
     return batches, order
 
 '''

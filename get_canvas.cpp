@@ -8,7 +8,7 @@ vector<vector<vector<uint32_t>>> get_canvas(
     vector<vector<uint32_t>>& seq,
     vector<vector<bool>>& keep,
     vector<uint32_t> n,
-    uint32_t blank_tok) {
+    uint32_t blank_id) {
   vector<vector<uint32_t>> batch_canvas, batch_blanks, batch_rest, batch_loc, batch_lb, batch_rb;
   for (uint32_t b = 0; b < seq.size(); b++) {
     vector<uint32_t> canvas, blanks, rest, loc, lb, rb;
@@ -29,7 +29,7 @@ vector<vector<vector<uint32_t>>> get_canvas(
         rb.pop_back();
         rb.push_back(0);
         blanks.push_back(canvas.size());
-        canvas.push_back(blank_tok);
+        canvas.push_back(blank_id);
       }
     }
     batch_canvas.push_back(canvas);

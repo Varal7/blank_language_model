@@ -79,6 +79,8 @@ parser.add_argument('--batch_size', type=int, default=128, metavar='N',
 parser.add_argument('--accum_grad', type=int, default=1, metavar='N',
                     help='accumulate gradients across N minibatches.')
 
+parser.add_argument('--n_mc', type=int, default=10, metavar='N',
+                    help='num of samples for monte carlo estimate of ppl')
 parser.add_argument('--checkpoint_every', type=int, default=1000, metavar='N',
                     help='save checkpoint every N steps')
 parser.add_argument('--log_every', type=int, default=100, metavar='N',
@@ -88,19 +90,20 @@ parser.add_argument('--seed', type=int, default=1111, metavar='N',
 parser.add_argument('--no_cuda', action='store_true',
                     help='disable CUDA')
 
-def evaluate(model, device, batches):
+def evaluate(model, device, batches, m):
     model.eval()
     meters = collections.defaultdict(lambda: AverageMeter())
+    total_nll = 0.
+    n_words = 0
     with torch.no_grad():
         for batch in batches:
             seq, n = map(lambda x: x.to(device), batch)
             losses = model.losses(seq, n)
             for k, v in losses.items():
-                if k == 'loss':
-                    meters[k].update(v.item(), n.sum().item())
-                else:
-                    meters[k].update(v.item(), len(n))
-    meters['ppl'].update(np.exp(meters['loss'].avg))
+                meters[k].update(v.item())
+            total_nll += model.nll_mc(seq, n, m)
+            n_words += n.sum().item()
+    meters['ppl'].update(np.exp(total_nll / n_words))
     return meters
 
 def main():
@@ -118,7 +121,7 @@ def main():
         Vocab.build(train_sents, vocab_file, args.vocab_size)
     vocab = Vocab(vocab_file)
     train_batches, _ = get_batches(train_sents, vocab, args.batch_size)
-    valid_batches, _ = get_batches(valid_sents, vocab, args.batch_size)
+    valid_batches, _ = get_batches(valid_sents, vocab, args.batch_size, same_len=True)
     logging('# train sents {}, tokens {}, batches {}'.format(len(train_sents),
         sum(len(s) for s in train_sents), len(train_batches)), log_file)
     logging('# valid sents {}, tokens {}, batches {}'.format(len(valid_sents),
@@ -164,7 +167,7 @@ def main():
 
         if step % args.checkpoint_every == 0:
             logging('-' * 80, log_file)
-            valid_meters = evaluate(model, device, valid_batches)
+            valid_meters = evaluate(model, device, valid_batches, args.n_mc)
             model.train()
             ckpt = {'args': args, 'model': model.state_dict()}
             if not best_val_ppl or valid_meters['ppl'].avg < best_val_ppl:

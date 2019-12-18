@@ -28,6 +28,8 @@ parser.add_argument('--sample', type=int, default=0, metavar='N',
 parser.add_argument('--fill', default='', metavar='FILE',
                     help='input file to fill')
 
+parser.add_argument('--n_mc', type=int, default=100, metavar='N',
+                    help='num of samples for monte carlo estimate of ppl')
 parser.add_argument('--decode', default='greedy', metavar='M',
                     choices=['greedy', 'sample'],
                     help='greedy decoding or sampling')
@@ -110,8 +112,8 @@ def main():
 
     if args.eval:
         sents = load_data(args.eval, model.args.doc, model.args.max_len)
-        batches, _ = get_batches(sents, vocab, args.batch_size)
-        meters = evaluate(model, device, batches)
+        batches, _ = get_batches(sents, vocab, args.batch_size, same_len=True)
+        meters = evaluate(model, device, batches, args.n_mc)
         print(' '.join(['{} {:.2f},'.format(k, meter.avg)
             for k, meter in meters.items()]))
 
