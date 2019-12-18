@@ -18,7 +18,7 @@ def get_batches(data, vocab, batch_size, same_len=False):
     i = 0
     while i < len(data):
         j = i
-        while j < min(len(data), i+batch_size) and (not same_len or (data[j]) == len(data[i])):
+        while j < min(len(data), i+batch_size) and (not same_len or len(data[j]) == len(data[i])):
             j += 1
         batches.append(get_batch(data[i: j], vocab))
         i = j

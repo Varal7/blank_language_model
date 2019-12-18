@@ -163,17 +163,21 @@ class LM(nn.Module):
         """Compute negative log-likelihood by monte carlo estimate
            m: number of samples to take
         """
+        assert torch.all(n == n[0]) # sentences in the batch must have the same length
+        nn = n[0]
+
         a = []
         for _ in range(m):
             rank = sample_permutation(seq, self.vocab.pad)
-            for k in range(seq.size(1)):
-                if k == 25:
-                    import pdb; pdb.set_trace()
+            logp = 0.
+            for k in range(nn):
                 keep = (rank < k)
                 canvas, blanks, rest, loc, lb, rb = get_canvas(seq, keep, n, self.vocab)
                 k_th = (rank == k).nonzero(as_tuple=True)[1]
                 x, y = (rest == k_th.unsqueeze(1)).nonzero(as_tuple=True)
-                rest = rest[x, y].unsqueeze(1)
-                loc = loc[x, y].unsqueeze(1)
-                lb = lb[x, y].unsqueeze(1)
-                rb = rb[x, y].unsqueeze(1)
+                assert torch.all(x == torch.arange(len(seq), device=seq.device))
+                rest, loc, lb, rb = [t[x, y].unsqueeze(1) for t in [rest, loc, lb, rb]]
+                loss_loc, loss_word, loss_lrb = self.get_loss(seq, canvas, blanks, rest, loc, lb, rb)
+                logp -= loss_loc + loss_word + loss_lrb
+            a.append(logp)
+        return np.log(m) - (nn + 1).float().lgamma() - torch.logsumexp(torch.cat(a), 0)
