@@ -101,7 +101,7 @@ def evaluate(model, device, batches, m):
             losses = model.losses(seq, n)
             for k, v in losses.items():
                 meters[k].update(v.item())
-            total_nll += model.nll_mc(seq, n, m)
+            total_nll += model.nll_mc(seq, n, m).sum().item()
             n_words += n.sum().item()
     meters['ppl'].update(np.exp(total_nll / n_words))
     return meters

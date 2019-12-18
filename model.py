@@ -160,17 +160,18 @@ class LM(nn.Module):
                }
 
     def nll_mc(self, seq, n, m):
-        """Compute negative log-likelihood by monte carlo estimate
-           m: number of samples to take
         """
-        assert torch.all(n == n[0]) # sentences in the batch must have the same length
-        nn = n[0]
+        Compute negative log-likelihood by monte carlo estimate
+        Args:
+            m: number of samples to take
 
+        Note: sentences in the batch must have the same length
+        """
         a = []
         for _ in range(m):
             rank = sample_permutation(seq, self.vocab.pad)
             logp = 0.
-            for k in range(nn):
+            for k in range(seq.size(1)):
                 keep = (rank < k)
                 canvas, blanks, rest, loc, lb, rb = get_canvas(seq, keep, n, self.vocab)
                 k_th = (rank == k).nonzero(as_tuple=True)[1]
@@ -179,5 +180,5 @@ class LM(nn.Module):
                 rest, loc, lb, rb = [t[x, y].unsqueeze(1) for t in [rest, loc, lb, rb]]
                 loss_loc, loss_word, loss_lrb = self.get_loss(seq, canvas, blanks, rest, loc, lb, rb)
                 logp -= loss_loc + loss_word + loss_lrb
-            a.append(logp)
-        return np.log(m) - (nn + 1).float().lgamma() - torch.logsumexp(torch.cat(a), 0)
+            a.append(logp.unsqueeze(1))
+        return np.log(m) - (n + 1).float().lgamma() - torch.logsumexp(torch.cat(a, 1), 1)
