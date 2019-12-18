@@ -79,9 +79,11 @@ parser.add_argument('--batch_size', type=int, default=128, metavar='N',
 parser.add_argument('--accum_grad', type=int, default=1, metavar='N',
                     help='accumulate gradients across N minibatches.')
 
+parser.add_argument('--eval_batch_size', type=int, default=512, metavar='N',
+                    help='batch size for evaluation')
 parser.add_argument('--n_mc', type=int, default=10, metavar='N',
                     help='num of samples for monte carlo estimate of ppl')
-parser.add_argument('--checkpoint_every', type=int, default=1000, metavar='N',
+parser.add_argument('--checkpoint_every', type=int, default=2000, metavar='N',
                     help='save checkpoint every N steps')
 parser.add_argument('--log_every', type=int, default=100, metavar='N',
                     help='report loss every N steps')
@@ -121,7 +123,7 @@ def main():
         Vocab.build(train_sents, vocab_file, args.vocab_size)
     vocab = Vocab(vocab_file)
     train_batches, _ = get_batches(train_sents, vocab, args.batch_size)
-    valid_batches, _ = get_batches(valid_sents, vocab, args.batch_size, same_len=True)
+    valid_batches, _ = get_batches(valid_sents, vocab, args.eval_batch_size, same_len=True)
     logging('# train sents {}, tokens {}, batches {}'.format(len(train_sents),
         sum(len(s) for s in train_sents), len(train_batches)), log_file)
     logging('# valid sents {}, tokens {}, batches {}'.format(len(valid_sents),

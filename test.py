@@ -36,7 +36,7 @@ parser.add_argument('--decode', default='greedy', metavar='M',
 parser.add_argument('--write_mid', action='store_true',
                     help='write intermediate partial sentences')
 
-parser.add_argument('--batch_size', type=int, default=64, metavar='N',
+parser.add_argument('--batch_size', type=int, default=512, metavar='N',
                     help='batch size')
 parser.add_argument('--seed', type=int, default=1111, metavar='N',
                     help='random seed')
