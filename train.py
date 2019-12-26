@@ -23,13 +23,15 @@ parser.add_argument('--save_dir', default='checkpoints', metavar='DIR',
 parser.add_argument('--load_model', default='', metavar='FILE',
                     help='path to load checkpoint if specified')
 
-parser.add_argument('--doc', action='store_true',
-                    help='if data has document structure, concatenate sentences'
-                         ' and chunk them into size of max_len')
 parser.add_argument('--vocab_size', type=int, default=10000, metavar='N',
                     help='keep N most frequent words in vocabulary')
 parser.add_argument('--max_len', type=int, default=50, metavar='N',
                     help='max sequence length')
+parser.add_argument('--cat_sent', action='store_true',
+                    help='concat sentences and then chunk into size of max_len')
+parser.add_argument('--add_eos', action='store_true',
+                    help='add <eos> at the end of each sentence')
+
 parser.add_argument('--d_model', type=int, default=512, metavar='N',
                     help='transformer dimension d_model')
 parser.add_argument('--d_inner_hid', type=int, default=2048, metavar='N',
@@ -52,7 +54,7 @@ parser.add_argument('--adam_betas', default='(0.9, 0.999)', metavar='(R, R)',
                     help='adam betas')
 parser.add_argument('--adam_eps', type=float, default=1e-8, metavar='R',
                     help='adam eps')
-parser.add_argument('--weight_decay', type=float, default=0.0001, metavar='R',
+parser.add_argument('--weight_decay', type=float, default=1e-5, metavar='R',
                     help='weight decay')
 parser.add_argument('--dropout', type=float, default=0.1, metavar='P',
                     help='dropout probability (0 = no dropout)')
@@ -81,8 +83,9 @@ parser.add_argument('--accum_grad', type=int, default=1, metavar='N',
 
 parser.add_argument('--eval_batch_size', type=int, default=512, metavar='N',
                     help='batch size for evaluation')
-parser.add_argument('--n_mc', type=int, default=10, metavar='N',
+parser.add_argument('--n_mc', type=int, default=1, metavar='N',
                     help='num of samples for monte carlo estimate of ppl')
+                    
 parser.add_argument('--checkpoint_every', type=int, default=2000, metavar='N',
                     help='save checkpoint every N steps')
 parser.add_argument('--log_every', type=int, default=100, metavar='N',
@@ -116,8 +119,8 @@ def main():
     logging(str(args), log_file)
 
     # Prepare data
-    train_sents = load_data(args.train, args.doc, args.max_len)
-    valid_sents = load_data(args.valid, args.doc, args.max_len)
+    train_sents = load_data(args.train, args.add_eos, args.cat_sent, args.max_len)
+    valid_sents = load_data(args.valid, args.add_eos, args.cat_sent, args.max_len)
     vocab_file = os.path.join(args.save_dir, 'vocab.txt')
     if not os.path.isfile(vocab_file):
         Vocab.build(train_sents, vocab_file, args.vocab_size)

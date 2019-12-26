@@ -11,16 +11,19 @@ def strip_eos(sents):
     return [sent[:sent.index('<eos>')] if '<eos>' in sent else sent
         for sent in sents]
 
-def load_sent(path):
+def load_sent(path, add_eos=False):
     sents = []
     with open(path) as f:
         for line in f:
-            sents.append(line.split() + ['<eos>'])
+            s = line.split()
+            if add_eos:
+                s += ['<eos>']
+            sents.append(s)
     return sents
 
-def load_data(path, doc, seq_len):
-    sents = load_sent(path)
-    if doc:
+def load_data(path, add_eos=False, cat_sent=False, seq_len=50):
+    sents = load_sent(path, add_eos)
+    if cat_sent:
         d = [w for s in sents for w in s]
         sents = [d[i: i+seq_len] for i in range(0, len(d), seq_len)]
     return sents

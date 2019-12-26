@@ -111,7 +111,7 @@ def main():
     out_path = os.path.join(args.checkpoint, args.output)
 
     if args.eval:
-        sents = load_data(args.eval, model.args.doc, model.args.max_len)
+        sents = load_data(args.eval, model.args.add_eos, model.args.cat_sent, model.args.max_len)
         batches, _ = get_batches(sents, vocab, args.batch_size, same_len=True)
         meters = evaluate(model, device, batches, args.n_mc)
         print(' '.join(['{} {:.2f},'.format(k, meter.avg)
