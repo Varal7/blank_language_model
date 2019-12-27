@@ -67,7 +67,7 @@ def main():
     r = std / mean
     print('mean:\t %.2f' % mean.mean())
     print('std:\t %.2f' % std.mean())
-    print('ratio:\t %.2f\%' % (r.mean() * 100))
+    print('ratio:\t %.2f%%' % (r.mean() * 100))
 
 if __name__ == '__main__':
     main()
