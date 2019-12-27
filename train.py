@@ -56,7 +56,7 @@ parser.add_argument('--adam_eps', type=float, default=1e-8, metavar='R',
                     help='adam eps')
 parser.add_argument('--weight_decay', type=float, default=1e-5, metavar='R',
                     help='weight decay')
-parser.add_argument('--dropout', type=float, default=0.1, metavar='P',
+parser.add_argument('--dropout', type=float, default=0.3, metavar='P',
                     help='dropout probability (0 = no dropout)')
 
 parser.add_argument('--lr_schedule', default='fixed', metavar='S',
@@ -74,18 +74,20 @@ parser.add_argument('--train_steps', type=int, default=300000, metavar='N',
 #parser.add_argument('--epochs', type=int, default=30, metavar='N',
 #                    help='number of training epochs')
 
-parser.add_argument('--batch_size', type=int, default=128, metavar='N',
-                    help='batch size')
-#parser.add_argument('--max_tokens', type=int, default=4000, metavar='N',
-#                    help='max number of tokens per batch')
+#parser.add_argument('--batch_size', type=int, default=128, metavar='N',
+#                    help='batch size')
+parser.add_argument('--max_tok', type=int, default=10000, metavar='N',
+                    help='max number of tokens per batch')
 parser.add_argument('--accum_grad', type=int, default=1, metavar='N',
                     help='accumulate gradients across N minibatches.')
 
-parser.add_argument('--eval_batch_size', type=int, default=512, metavar='N',
-                    help='batch size for evaluation')
+#parser.add_argument('--eval_batch_size', type=int, default=512, metavar='N',
+#                    help='batch size for evaluation')
+parser.add_argument('--eval_max_tok', type=int, default=40000, metavar='N',
+                    help='max number of tokens per batch for evaluation')
 parser.add_argument('--n_mc', type=int, default=1, metavar='N',
                     help='num of samples for monte carlo estimate of ppl')
-                    
+
 parser.add_argument('--checkpoint_every', type=int, default=2000, metavar='N',
                     help='save checkpoint every N steps')
 parser.add_argument('--log_every', type=int, default=100, metavar='N',
@@ -125,8 +127,8 @@ def main():
     if not os.path.isfile(vocab_file):
         Vocab.build(train_sents, vocab_file, args.vocab_size)
     vocab = Vocab(vocab_file)
-    train_batches, _ = get_batches(train_sents, vocab, args.batch_size)
-    valid_batches, _ = get_batches(valid_sents, vocab, args.eval_batch_size, same_len=True)
+    train_batches, _ = get_batches(train_sents, vocab, args.max_tok)
+    valid_batches, _ = get_batches(valid_sents, vocab, args.eval_max_tok, same_len=True)
     logging('# train sents {}, tokens {}, batches {}'.format(len(train_sents),
         sum(len(s) for s in train_sents), len(train_batches)), log_file)
     logging('# valid sents {}, tokens {}, batches {}'.format(len(valid_sents),

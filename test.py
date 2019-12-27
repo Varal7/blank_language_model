@@ -36,8 +36,10 @@ parser.add_argument('--decode', default='greedy', metavar='M',
 parser.add_argument('--write_mid', action='store_true',
                     help='write intermediate partial sentences')
 
-parser.add_argument('--batch_size', type=int, default=512, metavar='N',
-                    help='batch size')
+#parser.add_argument('--batch_size', type=int, default=512, metavar='N',
+#                    help='batch size')
+parser.add_argument('--max_tok', type=int, default=40000, metavar='N',
+                    help='max number of tokens per batch')
 parser.add_argument('--seed', type=int, default=1111, metavar='N',
                     help='random seed')
 parser.add_argument('--no_cuda', action='store_true',
@@ -112,7 +114,7 @@ def main():
 
     if args.eval:
         sents = load_data(args.eval, model.args.add_eos, model.args.cat_sent, model.args.max_len)
-        batches, _ = get_batches(sents, vocab, args.batch_size, same_len=True)
+        batches, _ = get_batches(sents, vocab, args.max_tok, same_len=True)
         meters = evaluate(model, device, batches, args.n_mc)
         print(' '.join(['{} {:.2f},'.format(k, meter.avg)
             for k, meter in meters.items()]))
