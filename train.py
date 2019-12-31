@@ -3,6 +3,7 @@ import time
 import os
 import random
 import collections
+from tqdm import tqdm
 import numpy as np
 import torch
 
@@ -103,7 +104,7 @@ def evaluate(model, device, batches, m):
     total_nll = 0.
     n_words = 0
     with torch.no_grad():
-        for batch in batches:
+        for batch in tqdm(batches):
             seq, n = map(lambda x: x.to(device), batch)
             losses = model.losses(seq, n)
             for k, v in losses.items():
