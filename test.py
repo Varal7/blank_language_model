@@ -1,6 +1,7 @@
 import argparse
 import os
 import numpy as np
+from tqdm import tqdm
 import torch
 import torch.nn.functional as F
 
@@ -121,7 +122,7 @@ def main():
 
     if args.sample:
         with open(out_path, 'w') as f:
-            for _ in range(args.sample):
+            for _ in tqdm(range(args.sample)):
                 res = generate([vocab.blank], model, vocab, device, args.decode)
                 write(f, res, args.write_mid)
 
@@ -130,7 +131,7 @@ def main():
         sents = [[vocab.word2idx[w] if w in vocab.word2idx else vocab.unk
             for w in s] for s in sents]
         with open(out_path, 'w') as f:
-            for s in sents:
+            for s in tqdm(sents):
                 res = generate(s, model, vocab, device, args.decode)
                 write(f, res, args.write_mid)
 
