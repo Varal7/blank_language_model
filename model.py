@@ -40,9 +40,10 @@ def to_tensor(x, pad_id, device):
     x_ = [xi + [pad_id] * (max_len - len(xi)) for xi in x]
     return torch.tensor(x_).to(device)
 
-def sample_permutation(seq, pad_id):
+def sample_permutation(seq, vocab):
     score = torch.rand_like(seq.float())
-    score.masked_fill_(seq == pad_id, 1) # always put pads last
+    score.masked_fill_(seq == vocab.blank, -1) # always put blanks first
+    score.masked_fill_(seq == vocab.pad, 1) # always put pads last
     indices = score.argsort()
     rank = torch.zeros_like(seq)
     rank[torch.arange(len(seq)).unsqueeze(1), indices] = \
@@ -147,8 +148,9 @@ class LM(nn.Module):
         return loss_loc, loss_word, loss_lrb
 
     def losses(self, seq, n):
-        k = (torch.rand_like(n.float()) * n.float()).long() # sample k from 0 to n-1
-        rank = sample_permutation(seq, self.vocab.pad)
+        b = (seq == self.vocab.blank).sum(1)
+        k = b + (torch.rand_like(n.float()) * (n-b).float()).long() # sample k from b to n-1
+        rank = sample_permutation(seq, self.vocab)
         keep = (rank < k.unsqueeze(1))
         canvas, blanks, rest, loc, lb, rb = get_canvas(seq, keep, n, self.vocab)
         loss_loc, loss_word, loss_lrb = self.get_loss(seq, canvas, blanks, rest, loc, lb, rb)
@@ -169,7 +171,7 @@ class LM(nn.Module):
         """
         a = []
         for _ in range(m):
-            rank = sample_permutation(seq, self.vocab.pad)
+            rank = sample_permutation(seq, self.vocab)
             logp = 0.
             for k in range(seq.size(1)):
                 keep = (rank < k)
