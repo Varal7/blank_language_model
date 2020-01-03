@@ -42,7 +42,7 @@ def to_tensor(x, pad_id, device):
 
 def sample_permutation(seq, vocab):
     score = torch.rand_like(seq.float())
-    score.masked_fill_(seq == vocab.blank, -1) # always put blanks first
+    score.masked_fill_(seq == vocab.missing, -1) # always put missings first
     score.masked_fill_(seq == vocab.pad, 1) # always put pads last
     indices = score.argsort()
     rank = torch.zeros_like(seq)
@@ -148,8 +148,8 @@ class LM(nn.Module):
         return loss_loc, loss_word, loss_lrb
 
     def losses(self, seq, n):
-        b = (seq == self.vocab.blank).sum(1)
-        k = b + (torch.rand_like(n.float()) * (n-b).float()).long() # sample k from b to n-1
+        m = (seq == self.vocab.missing).sum(1)
+        k = m + (torch.rand_like(n.float()) * (n-m).float()).long() # sample k from m to n-1
         rank = sample_permutation(seq, self.vocab)
         keep = (rank < k.unsqueeze(1))
         canvas, blanks, rest, loc, lb, rb = get_canvas(seq, keep, n, self.vocab)

@@ -17,6 +17,7 @@ class Vocab(object):
         self.bos = self.word2idx['<bos>']
         self.eos = self.word2idx['<eos>']
         self.blank = self.word2idx['<blank>']
+        self.missing = self.word2idx['<missing>']
 
     @staticmethod
     def build(sents, path, size):
