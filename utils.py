@@ -21,11 +21,15 @@ def load_sent(path, add_eos=False):
             sents.append(s)
     return sents
 
-def load_data(path, add_eos=False, cat_sent=False, seq_len=50):
+def load_data(path, add_eos=False, cat_sent=False, max_len=50):
     sents = load_sent(path, add_eos)
     if cat_sent:
         d = [w for s in sents for w in s]
-        sents = [d[i: i+seq_len] for i in range(0, len(d), seq_len)]
+        sents = [d[i: i+seq_len] for i in range(0, len(d), max_len)]
+    else:
+        n = len(sents)
+        sents = [s for s in sents if len(s) <= max_len]
+        print('# discarded sents:', n - len(sents))
     return sents
 
 def write_sent(sents, path):
