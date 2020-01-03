@@ -1,6 +1,6 @@
 import re
 
-def convert(inp, out):
+def convert_train(inp, out):
     with open(inp) as finp:
         with open(out, 'w') as fout:
             for line in finp:
@@ -8,7 +8,7 @@ def convert(inp, out):
                 #line = re.sub('\-+', '-', line)
                 for c in line:
                     if c == ' ':
-                        fout.write('_')
+                        fout.write('<space>')
                     elif c == '-':
                         fout.write('<missing>')
                     else:
@@ -17,5 +17,27 @@ def convert(inp, out):
                     if c != '\n':
                         fout.write(' ')
 
-for x in ['train', 'valid', 'test']:
-    convert(x + '.ori.txt', x + '.txt')
+def convert_test(inp, out):
+    with open(inp) as finp:
+        with open(out, 'w') as fout:
+            for line in finp:
+                line = re.sub('_+', '_', line)
+                for c in line:
+                    if c == ' ':
+                        fout.write('<space>')
+                    elif c == '-':
+                        fout.write('<missing>')
+                    elif c == '_':
+                        fout.write('<blank>')
+                    elif c == '.':
+                        fout.write('<eos>')
+                    else:
+                        fout.write(c)
+
+                    if c != '\n':
+                        fout.write(' ')
+
+#for x in ['train', 'valid', 'test']:
+#    convert_train(x + '.ori.txt', x + '.txt')
+
+convert_test('test.x', 'test.blank')
