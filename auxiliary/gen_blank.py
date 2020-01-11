@@ -39,31 +39,60 @@ def split(m, k):
     b = [0] + sorted(a[:k-1]) + [m]
     return [b[i+1] - b[i] for i in range(k)]
 
-if __name__ == '__main__':
+def mask_nblanks_ratio(sents, k, r, times, path):
+    blank, fill = [], []
+    for _ in range(times):
+        for sent in sents:
+            n = len(sent)
+            m = int(n*r)
+            if m >= k and m+k-1 <= n:
+                l = split(m, k)
+                ls = list(accumulate(l[::-1]))[::-1]
+                keep = [True] * n
+                i = 0
+                for j in range(k):
+                    q = n - ls[j] - (k-j-1)
+                    p = random.randint(i, q)
+                    for x in range(l[j]):
+                        keep[p+x] = False
+                    i = p+l[j]+1
+                b, f = process(sent, keep)
+                blank.append(b)
+                fill.append(f)
+    write_sent(blank, path + '.blank')
+    write_sent(fill, path + '.fill')
+
+def mask_uni_len(sents, times, path):
+    blank, fill = [], []
+    for _ in range(times):
+        for sent in sents:
+            n = len(sent)
+            k = random.randint(0, n)
+            order = list(range(n))
+            random.shuffle(order)
+            keep = [order[i] < k for i in range(n)]
+            b, f = process(sent, keep)
+            blank.append(b)
+            fill.append(f)
+    write_sent(blank, path + '.blank')
+    write_sent(fill, path + '.fill')
+
+def main():
     random.seed(1)
 
     path = sys.argv[1]
     sents = load_sent(path + '.txt')
 
+    times = 1
+    if len(sys.argv) > 2:
+        times = int(sys.argv[2])
+        path += '.times%d' % times
+
     for k in [1, 2, 3]:
         for r in [0.25, 0.50, 0.75]:
-            blank, fill = [], []
-            for sent in sents:
-                n = len(sent)
-                m = int(n*r)
-                if m >= k and m+k-1 <= n:
-                    l = split(m, k)
-                    ls = list(accumulate(l[::-1]))[::-1]
-                    keep = [True] * n
-                    i = 0
-                    for j in range(k):
-                        q = n - ls[j] - (k-j-1)
-                        p = random.randint(i, q)
-                        for x in range(l[j]):
-                            keep[p+x] = False
-                        i = p+l[j]+1
-                    b, f = process(sent, keep)
-                    blank.append(b)
-                    fill.append(f)
-            write_sent(blank, '%s.blank%d.maskratio%.2f.blank' % (path, k, r))
-            write_sent(fill, '%s.blank%d.maskratio%.2f.fill' % (path, k, r))
+            mask_nblanks_ratio(sents, k, r, times, path + '.blank%d.maskratio%.2f' % (k, r))
+
+    mask_uni_len(sents, times, path + '.uni_len')
+
+if __name__ == '__main__':
+    main()
