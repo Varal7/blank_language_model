@@ -74,8 +74,10 @@ def generate(seq, model, vocab, device, decode, write_fill):
         loc = select(model.loc(output_blank).squeeze(-1), decode)
         output_loc = output_blank[loc]
 
-        # joint word, lrb prediction
         logits_word = model.word(output_loc) * model.x_logit_scale
+        logits_word[vocab.blank] = float('-inf')    # never predict "<blank>"
+
+        # joint word, lrb prediction
         lprob_word = F.log_softmax(logits_word, -1)
         output_word = torch.cat((output_loc.unsqueeze(0).expand(vocab.size, -1),
             model.G.src_word_emb.weight), -1)
@@ -86,7 +88,7 @@ def generate(seq, model, vocab, device, decode, write_fill):
         word, lrb = word_lrb / 4, word_lrb % 4
 
         # predict word first and then lrb
-        #word = select(model.word(output_loc) * model.x_logit_scale, decode)
+        #word = select(logits_word, decode)
         #output_word = torch.cat((output_loc, model.G.src_word_emb(word)), dim=-1)
         #lrb = select(model.lrb(output_word), decode)
 
