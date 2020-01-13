@@ -31,13 +31,21 @@ def process(sent, keep):
         fill = fill[:-1]
     return blank, fill
 
-def split(m, k):
-    ''' randomly generate k positive integers that sum up to m '''
+def partition(m, k):
+    ''' randomly partition m into k positive integers '''
     assert m >= k
     a = list(range(1, m))
     random.shuffle(a)
     b = [0] + sorted(a[:k-1]) + [m]
     return [b[i+1] - b[i] for i in range(k)]
+
+def fitin(n, l):
+    ''' randomly fit blanks of length l into a sentence of length n '''
+    s = partition(n+2-sum(l), len(l)+1)
+    keep = [True] * s[0]
+    for p, q in zip(l, s[1:]):
+        keep += [False] * p + [True] * q
+    return keep[1: -1]
 
 def mask_nblanks_ratio(sents, k, r, times, path):
     blank, fill = [], []
@@ -46,16 +54,22 @@ def mask_nblanks_ratio(sents, k, r, times, path):
             n = len(sent)
             m = int(n*r)
             if m >= k and m+k-1 <= n:
-                l = split(m, k)
-                ls = list(accumulate(l[::-1]))[::-1]
-                keep = [True] * n
-                i = 0
-                for j in range(k):
-                    q = n - ls[j] - (k-j-1)
-                    p = random.randint(i, q)
-                    for x in range(l[j]):
-                        keep[p+x] = False
-                    i = p+l[j]+1
+                l = partition(m, k)
+                keep = fitin(n, l)
+                b, f = process(sent, keep)
+                blank.append(b)
+                fill.append(f)
+    write_sent(blank, path + '.blank')
+    write_sent(fill, path + '.fill')
+
+def mask_nblanks_maxlen(sents, k, max_l, times, path):
+    blank, fill = [], []
+    for _ in range(times):
+        for sent in sents:
+            n = len(sent)
+            l = [random.randint(1, max_l) for _ in range(k)]
+            if sum(l)+k-1 <= n:
+                keep = fitin(n, l)
                 b, f = process(sent, keep)
                 blank.append(b)
                 fill.append(f)
@@ -88,11 +102,15 @@ def main():
         times = int(sys.argv[2])
         path += '.times%d' % times
 
-    for k in [1, 2, 3]:
-        for r in [0.25, 0.50, 0.75]:
-            mask_nblanks_ratio(sents, k, r, times, path + '.blank%d.maskratio%.2f' % (k, r))
+    #for k in [1, 2, 3]:
+    #    for r in [0.25, 0.50, 0.75]:
+    #        mask_nblanks_ratio(sents, k, r, times, path + '.blank%d.maskratio%.2f' % (k, r))
 
-    mask_uni_len(sents, times, path + '.uni_len')
+    for k in [1, 2, 3]:
+        for l in [1, 5, 10]:
+            mask_nblanks_maxlen(sents, k, l, times, path + '.blank%d.maxlen%d' % (k, l))
+
+    #mask_uni_len(sents, times, path + '.uni_len')
 
 if __name__ == '__main__':
     main()
