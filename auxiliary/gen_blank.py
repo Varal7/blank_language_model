@@ -1,4 +1,5 @@
 import sys
+import os
 import random
 from itertools import accumulate
 
@@ -101,6 +102,10 @@ def main():
     path = sys.argv[1]
     sents = load_sent(path + '.txt')
 
+    dir = 'infill'
+    os.makedirs(dir)
+    path = os.path.join(dir, path)
+
     times = 1
     if len(sys.argv) > 2:
         times = int(sys.argv[2])
@@ -110,8 +115,8 @@ def main():
     #    for r in [0.25, 0.50, 0.75]:
     #        mask_nblanks_ratio(sents, k, r, times, path + '.blank%d.maskratio%.2f' % (k, r))
 
-    for k in [1, 2, 3]:
-        for l in [1, 5, 10]:
+    for k in range(1, 6):
+        for l in range(1, 11):
             mask_nblanks_maxlen(sents, k, l, times, path + '.blank%d.maxlen%d' % (k, l))
 
     #mask_uni_len(sents, times, path + '.uni_len')
