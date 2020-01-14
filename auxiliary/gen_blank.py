@@ -48,33 +48,37 @@ def fitin(n, l):
     return keep[1: -1]
 
 def mask_nblanks_ratio(sents, k, r, times, path):
-    blank, fill = [], []
+    blank, fill, full = [], [], []
     for _ in range(times):
-        for sent in sents:
-            n = len(sent)
+        for s in sents:
+            n = len(s)
             m = int(n*r)
             if m >= k and m+k-1 <= n:
                 l = partition(m, k)
                 keep = fitin(n, l)
-                b, f = process(sent, keep)
+                b, f = process(s, keep)
                 blank.append(b)
                 fill.append(f)
+                full.append(s)
     write_sent(blank, path + '.blank')
     write_sent(fill, path + '.fill')
+    write_sent(full, path + '.full')
 
 def mask_nblanks_maxlen(sents, k, max_l, times, path):
-    blank, fill = [], []
+    blank, fill, full = [], [], []
     for _ in range(times):
-        for sent in sents:
-            n = len(sent)
+        for s in sents:
+            n = len(s)
             l = [random.randint(1, max_l) for _ in range(k)]
             if sum(l)+k-1 <= n:
                 keep = fitin(n, l)
-                b, f = process(sent, keep)
+                b, f = process(s, keep)
                 blank.append(b)
                 fill.append(f)
+                full.append(s)
     write_sent(blank, path + '.blank')
     write_sent(fill, path + '.fill')
+    write_sent(full, path + '.full')
 
 def mask_uni_len(sents, times, path):
     blank, fill = [], []
