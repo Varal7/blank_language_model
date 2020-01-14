@@ -13,9 +13,9 @@ for i, o in zip(inp, out):
         inp_b.append(i)
         out_b.append(o)
 
-inp_file += '.fail'
-out_file += '.fail'
-with open(inp_file, 'w') as f:
-    f.writelines(inp_b)
-with open(out_file, 'w') as f:
-    f.writelines(out_b)
+print('%d/%d have <blank>' % (len(out_b), len(out)))
+with open(out_file + '.have_blank', 'w') as f:
+    for i, o in zip(inp_b, out_b):
+        f.write(i)
+        f.write(o)
+        f.write('\n')
