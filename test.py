@@ -36,8 +36,6 @@ parser.add_argument('--decode', default='greedy', metavar='M',
                     help='greedy decoding or sampling')
 parser.add_argument('--write_mid', action='store_true',
                     help='write intermediate partial sentences')
-parser.add_argument('--write_fill', action='store_true',
-                    help='write only filled parts')
 
 #parser.add_argument('--batch_size', type=int, default=512, metavar='N',
 #                    help='batch size')
@@ -63,11 +61,12 @@ def select(logits, decode):
     else:
         return logits.argmax()
 
-def generate(seq, model, vocab, device, decode, write_fill):
+def generate(seq, model, vocab, device, decode):
     seq = torch.LongTensor(seq).to(device)
     blanks = [i for i, w in enumerate(seq) if w == vocab.blank]
     is_fill = [0] * len(seq)
-    res = [[vocab.idx2word[id] for i, id in enumerate(seq) if is_fill[i] or not write_fill]]
+    fill = [[vocab.idx2word[id] for id, isf in zip(seq, is_fill) if isf]]
+    full = [[vocab.idx2word[id] for id in seq]]
     while len(blanks) > 0 and len(seq) <= model.args.max_len:
         output = model(seq.unsqueeze(0))[0]
         output_blank = output[blanks]
@@ -99,8 +98,9 @@ def generate(seq, model, vocab, device, decode, write_fill):
         seq = torch.cat((seq[:pos], ins, seq[pos+1:]))
         blanks = [i for i, w in enumerate(seq) if w == vocab.blank]
         is_fill = is_fill[:pos] + [1] * len(ins) + is_fill[pos+1:]
-        res.append([vocab.idx2word[id] for i, id in enumerate(seq) if is_fill[i] or not write_fill])
-    return res
+        fill.append([vocab.idx2word[id] for id, isf in zip(seq, is_fill) if isf])
+        full.append([vocab.idx2word[id] for id in seq])
+    return fill, full
 
 def write(file, res, write_mid):
     if write_mid:
@@ -127,19 +127,23 @@ def main():
             for k, meter in meters.items()]))
 
     if args.sample:
-        with open(out_path, 'w') as f:
-            for _ in tqdm(range(args.sample)):
-                res = generate([vocab.blank], model, vocab, device, args.decode, args.write_fill)
-                write(f, res, args.write_mid)
+        with open(out_path + '.fill', 'w') as f_fill:
+            with open(out_path + '.full', 'w') as f_full:
+                for _ in tqdm(range(args.sample)):
+                    fill, full = generate([vocab.blank], model, vocab, device, args.decode)
+                    write(f_fill, fill, args.write_mid)
+                    write(f_full, full, args.write_mid)
 
     if args.fill:
         sents = load_sent(args.fill)#, model.args.add_eos)
         sents = [[vocab.word2idx[w] if w in vocab.word2idx else vocab.unk
             for w in s] for s in sents]
-        with open(out_path, 'w') as f:
-            for s in tqdm(sents):
-                res = generate(s, model, vocab, device, args.decode, args.write_fill)
-                write(f, res, args.write_mid)
+        with open(out_path + '.fill', 'w') as f_fill:
+            with open(out_path + '.full', 'w') as f_full:
+                for s in tqdm(sents):
+                    fill, full = generate(s, model, vocab, device, args.decode)
+                    write(f_fill, fill, args.write_mid)
+                    write(f_full, full, args.write_mid)
 
 if __name__ == '__main__':
     main()
