@@ -135,7 +135,7 @@ def main():
                     write(f_full, full, args.write_mid)
 
     if args.fill:
-        sents = load_sent(args.fill)#, model.args.add_eos)
+        sents = load_sent(args.fill, model.args.add_eos)
         sents = [[vocab.word2idx[w] if w in vocab.word2idx else vocab.unk
             for w in s] for s in sents]
         with open(out_path + '.fill', 'w') as f_fill:
