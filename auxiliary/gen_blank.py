@@ -103,7 +103,8 @@ def main():
     sents = load_sent(path + '.txt')
 
     dir = 'infill'
-    os.makedirs(dir)
+    if not os.path.exists(dir):
+        os.makedirs(dir)
     path = os.path.join(dir, path)
 
     times = 1
