@@ -8,7 +8,9 @@ def parse(path):
         yield eval(l)
 
 file = sys.argv[1]
-with open(file + '.txt', 'w') as f:
+max_len = int(sys.argv[2])
+with open(file + '.maxlen%d.txt' % max_len, 'w') as f:
     for data in parse(file + '.json.gz'):
         text = word_tokenize(data['reviewText'])
-        f.write(' '.join(text) + '\n')
+        if len(text) <= max_len:
+            f.write(' '.join(text) + '\n')
