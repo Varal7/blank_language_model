@@ -7,7 +7,7 @@ import torch.nn.functional as F
 
 from vocab import Vocab
 from model import LM
-from utils import set_seed, load_data, load_sent
+from utils import set_seed, load_data, load_sent, strip_eos
 from batchify import get_batches
 from train import evaluate
 
@@ -102,13 +102,14 @@ def generate(seq, model, vocab, device, decode):
         full.append([vocab.idx2word[id] for id in seq])
     return fill, full
 
-def write(file, res, write_mid):
+def write(file, sents, write_mid):
+    sents = strip_eos(sents)
     if write_mid:
-        for x in res:
-            file.write(' '.join(x) + '\n')
+        for s in sents:
+            file.write(' '.join(s) + '\n')
         file.write('\n')
     else:
-        file.write(' '.join(res[-1]) + '\n')
+        file.write(' '.join(sents[-1]) + '\n')
 
 def main():
     args = parser.parse_args()
