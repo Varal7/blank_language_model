@@ -82,7 +82,7 @@ def mask_nblanks_maxlen(sents, k, max_l, times, path):
     write_sent(full, path + '.full')
 
 def mask_ratio(sents, times, path, r=0):
-    blank, fill, full = [], [], []
+    drop, blank, fill, full = [], [], [], []
     for _ in range(times):
         for s in sents:
             n = len(s)
@@ -93,10 +93,13 @@ def mask_ratio(sents, times, path, r=0):
             order = list(range(n))
             random.shuffle(order)
             keep = [order[i] < k for i in range(n)]
+            d = [w for i, w in enumerate(s) if keep[i]]
             b, f = process(s, keep)
+            drop.append(d)
             blank.append(b)
             fill.append(f)
             full.append(s)
+    write_sent(drop, path + '.drop')
     write_sent(blank, path + '.blank')
     write_sent(fill, path + '.fill')
     if times > 1:
