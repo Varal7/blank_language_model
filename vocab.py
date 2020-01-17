@@ -37,3 +37,6 @@ class Vocab(object):
         with open(path, 'w') as f:
             for v, o in zip(voc, occ):
                 f.write('{}\t{}\n'.format(v, o))
+
+    def is_blank(self, candidate):
+        return candidate == self.blank
