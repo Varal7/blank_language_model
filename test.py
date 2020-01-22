@@ -35,6 +35,8 @@ parser.add_argument('--decode', default='greedy', metavar='M',
                     choices=['greedy', 'sample'],
                     help='greedy decoding or sampling')
 parser.add_argument('--beam_size', type=int, default=1, metavar='N', help='Beam size')
+parser.add_argument('--topk', type=int, default=None, metavar='N',
+                    help='Restrict vocabulary to top topk words when doing beam search')
 parser.add_argument('--write_mid', action='store_true',
                     help='write intermediate partial sentences')
 
@@ -84,11 +86,18 @@ def get_index_from_mask(blank_mask):
 
     return blanks, recover_blanks
 
-def beam_search(seq, model, vocab, device, beam_size):
+def beam_search(seq, model, vocab, device, beam_size, topk=None):
+    if topk is None:
+        topk = vocab.size
+
     full, fill = [], []
-    t_seq = torch.LongTensor([seq]).to(device)
+    t_seq = torch.LongTensor([seq]).to(device) # (t, L, d)
     t_scores = torch.FloatTensor([0.]).to(device)
     t_is_fill = t_seq.new_zeros(t_seq.size())
+
+
+    fill.append([vocab.idx2word[id] for id, isf in zip(t_seq[0], t_is_fill[0]) if isf])
+    full.append([vocab.idx2word[id] for id in t_seq[0]])
 
     while vocab.is_blank(t_seq).any() and len(t_seq[0]) <= model.args.max_len:
 
@@ -100,14 +109,14 @@ def beam_search(seq, model, vocab, device, beam_size):
         t_blank_non_pad = t_blank.ne(-1)
 
         with torch.no_grad():
-            t_output = model(t_seq)
+            t_output = model(t_seq) # (t, L, d)
 
-        t_output_blank = collect(t_output, t_blank)
+        t_output_blank = collect(t_output, t_blank) # (t, nb, d)
 
         with torch.no_grad():
             t_lprob_loc = model.loc(t_output_blank)
 
-        # Batch b: one row per loc
+        # Batch b: one row per loc (b = t * nb)
         b2t = t_blank_non_pad.nonzero()[:, 0]
         b_loc = t_blank_non_pad.nonzero()[:, 1]
         b_score_loc = t_lprob_loc[t_blank_non_pad]
@@ -117,7 +126,7 @@ def beam_search(seq, model, vocab, device, beam_size):
         # Select output at corresponding loc (one per row)
         _, _, hdim = t_output_blank.shape
         t_output_blank.view(-1)[t_blank_non_pad.unsqueeze(-1).expand(-1, -1, hdim).reshape(-1)].view(-1, hdim)
-        b_output_loc = t_output_blank.view(-1)[t_blank_non_pad.unsqueeze(-1).expand(-1, -1, hdim).reshape(-1)].view(-1, hdim)
+        b_output_loc = t_output_blank.view(-1)[t_blank_non_pad.unsqueeze(-1).expand(-1, -1, hdim).reshape(-1)].view(-1, hdim) # (b, d)
 
         # Get positions of blanks at each loc
         b_pos = t_blank.reshape(-1)[t_blank_non_pad.view(-1)]
@@ -126,23 +135,32 @@ def beam_search(seq, model, vocab, device, beam_size):
 
         with torch.no_grad():
             b_logits_word = model.word(b_output_loc) * model.x_logit_scale
-        b_lprob_word = F.log_softmax(b_logits_word, -1)
+        b_logits_word[:, vocab.blank] = float('-inf')    # never predict "<blank>"
+        b_lprob_word = F.log_softmax(b_logits_word, -1) # (b, V)
+
+        # Only keep topk best words
+        b_lprob_word, b_top_word_indices = b_lprob_word.topk(topk, dim=1)
 
         # Concatenate output with word embedding
         b_size = len(b_output_loc)
-        b_output_word = torch.cat((b_output_loc.unsqueeze(1).expand(-1, vocab.size, -1),
-            model.G.src_word_emb.weight.expand(b_size, -1, -1)), -1)
+        b_output_loc = b_output_loc.unsqueeze(1).expand(-1, topk, -1) # (b, k, d)
+        b_embedding_weight = model.G.src_word_emb(b_top_word_indices) # (b, k, d)
+        b_output_word = torch.cat((b_output_loc, b_embedding_weight), -1) # (b, k, 2d)
 
         # Get logits for lrb
         with torch.no_grad():
             b_logits_lrb = model.lrb(b_output_word)
-        b_lprob_lrb = F.log_softmax(b_logits_lrb, -1)
+        b_lprob_lrb = F.log_softmax(b_logits_lrb, -1) # (b, k, 4)
 
 
-        #  Make joint prediction (pick top-k, k=beam_size), one per loc
-        b_lprob_word_lrb = b_lprob_word.unsqueeze(-1) + b_lprob_lrb
-        b_flat_lprob_word_lrb = b_lprob_word_lrb.view(b_size, -1)
-        b_lprob_word_lrb, b_word_lrb = torch.topk(b_flat_lprob_word_lrb, beam_size, -1)
+        #  Make joint prediction (pick top-k with k=beam_size), one per loc
+        b_lprob_word_lrb = b_lprob_word.unsqueeze(-1) + b_lprob_lrb # (b, k, 4)
+        b_flat_lprob_word_lrb = b_lprob_word_lrb.view(b_size, -1) # (b, 4k)
+        b_lprob_word_lrb, b_word_lrb = torch.topk(b_flat_lprob_word_lrb, beam_size, -1) # (b, bs)
+
+        # Revert to correct indices
+        b_lrb = b_word_lrb % 4
+        b_word_lrb = b_top_word_indices.gather(1, (b_word_lrb / 4)) * 4 + b_lrb
 
         # Add score of location
         b_lprob_loc_word_lrb = b_lprob_word_lrb + b_score_loc
@@ -247,6 +265,9 @@ def main():
     model = get_model(os.path.join(args.checkpoint, args.model), vocab, device)
     out_path = os.path.join(args.checkpoint, args.output)
 
+    if args.topk:
+        assert args.beam_size > 1
+
     if args.eval:
         sents = load_data(args.eval, model.args.add_eos, model.args.cat_sent, model.args.max_len)
         batches, _ = get_batches(sents, vocab, args.max_tok, same_len=True)
@@ -273,7 +294,7 @@ def main():
                         fill, full = generate(s, model, vocab, device, args.decode)
                     else:
                         assert args.decode == "greedy"
-                        fill, full = beam_search(s, model, vocab, device, args.beam_size)
+                        fill, full = beam_search(s, model, vocab, device, args.beam_size, args.topk)
                     write(f_fill, fill, args.write_mid)
                     write(f_full, full, args.write_mid)
 
