@@ -140,7 +140,6 @@ class LM(nn.Module):
         features = self.pool_out(
                 torch.cat((output[:, :-1, :], output[:, 1:, :]), dim=-1)
         )
-        #  output_blank = collect(output, blanks)
         logits_loc = self.loc(features).squeeze(-1)
         logits_loc[~mask] = float('-inf')
         nll_loc = -F.log_softmax(logits_loc, 1)
@@ -170,8 +169,7 @@ class LM(nn.Module):
         # canvas has <bos> + k tokens + <eos>
         mask = (new_arange(canvas) < (k + 1).unsqueeze(1))[:, :-1] # mask for logits_loc
         loss_loc, loss_word  = self.get_loss(seq, canvas, rest, loc, mask)
-        # TODO: ask tianxiao about n vs n+1
-        nll_lb = (loss_loc + loss_word) * n.float() - (n + 1).float().lgamma()
+        nll_lb = (loss_loc + loss_word) * (n + 1).float() - (n + 1).float().lgamma()
         return {'loss' : nll_lb.sum() / n.sum(),
                 'loc'  : loss_loc.mean(),
                 'word' : loss_word.mean(),
@@ -185,19 +183,23 @@ class LM(nn.Module):
 
         Note: sentences in the batch must have the same length
         """
-        # TODO
         a = []
         for _ in range(m):
             rank = sample_permutation(seq, self.vocab)
             logp = 0.
-            for k in range(seq.size(1)):
+            for k in range(2, seq.size(1) + 1): # k from 2 to n + 2
                 keep = (rank < k)
-                canvas, blanks, rest, loc, lb, rb = get_canvas(seq, keep, n, self.vocab)
-                k_th = (rank == k).nonzero(as_tuple=True)[1]
-                x, y = (rest == k_th.unsqueeze(1)).nonzero(as_tuple=True)
-                assert torch.all(x == torch.arange(len(seq), device=seq.device))
-                rest, loc, lb, rb = [t[x, y].unsqueeze(1) for t in [rest, loc, lb, rb]]
-                loss_loc, loss_word, loss_lrb = self.get_loss(seq, canvas, blanks, rest, loc, lb, rb)
-                logp -= loss_loc + loss_word + loss_lrb
+                canvas, rest, loc = get_canvas(seq, keep, n, self.vocab)
+                if k == seq.size(1):
+                    pass # rest and loc are already correct
+                else:
+                    k_th = (rank == k).nonzero(as_tuple=True)[1] # First token not kept
+                    x, y = (rest == k_th.unsqueeze(1)).nonzero(as_tuple=True)
+                    assert len(seq) == len(x)
+                    assert torch.all(x == torch.arange(len(seq), device=seq.device))
+                    rest, loc = [t[x, y].unsqueeze(1) for t in [rest, loc]]
+                mask = (new_arange(canvas) < (k - 1))[:, :-1] # mask for logits_loc
+                loss_loc, loss_word  = self.get_loss(seq, canvas, rest, loc, mask)
+                logp -= loss_loc + loss_word
             a.append(logp.unsqueeze(1))
         return np.log(m) - (n + 1).float().lgamma() - torch.logsumexp(torch.cat(a, 1), 1)

@@ -13,6 +13,8 @@ from meters import AverageMeter
 from utils import set_seed, logging, load_data
 from batchify import get_batches
 
+from tensorboardX import SummaryWriter
+
 parser = argparse.ArgumentParser()
 
 parser.add_argument('--train', metavar='FILE', required=True,
@@ -124,6 +126,10 @@ def main():
     log_file = os.path.join(args.save_dir, 'log.txt')
     logging(str(args), log_file)
 
+    tensorboard_logdir = os.path.join(args.save_dir, 'log')
+    train_writer = SummaryWriter(os.path.join(tensorboard_logdir, "train"))
+    val_writer = SummaryWriter(os.path.join(tensorboard_logdir, "val"))
+
     # Prepare data
     train_sents = load_data(args.train, args.add_eos, args.cat_sent, args.max_len - 2)
     valid_sents = load_data(args.valid, args.add_eos, args.cat_sent, args.max_len - 2)
@@ -173,6 +179,7 @@ def main():
             log = '| step {:6d}/{:6d} |'.format(step, args.train_steps)
             for k, meter in meters.items():
                 log += ' {} {:.2f},'.format(k, meter.avg)
+                train_writer.add_scalar(k, meter.avg, step)
                 meter.clear()
             logging(log, log_file)
 
@@ -192,6 +199,7 @@ def main():
                 step, time.time() - start_time, model.opt.lr)
             for k, meter in valid_meters.items():
                 log += ' {} {:.2f},'.format(k, meter.avg)
+                val_writer.add_scalar(k, meter.avg, step)
             log += ' | best {:.2f}'.format(best_val_ppl)
             logging(log, log_file)
             logging('-' * 80, log_file)

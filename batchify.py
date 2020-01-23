@@ -5,7 +5,6 @@ def get_batch(x, vocab):
     n = [len(s) for s in x]
     max_len = max(n)
     for s, l in zip(x, n):
-        # TODO ask tianxiao about this
         s_idx = [vocab.word2idx[w] if w in vocab.word2idx else vocab.unk for w in s]
         seq.append([vocab.bos] + s_idx + [vocab.eos] + [vocab.pad] * (max_len - l))
     return torch.LongTensor(seq), torch.LongTensor(n)
