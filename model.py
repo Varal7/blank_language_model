@@ -11,6 +11,15 @@ from meters import StopwatchMeter
 
 get_canvas_cpp = load(name="get_canvas_cpp", sources=["get_canvas.cpp"])
 
+def new_arange(x, *size):
+    """
+    Return a Tensor of `size` filled with a range function on the device of x.
+    If size is empty, using the size of the variable x.
+    """
+    if len(size) == 0:
+        size = x.size()
+    return torch.arange(size[-1], device=x.device).expand(*size).contiguous()
+
 def seq_cross_entropy(pred, gold, pad, smoothing=False):
     ''' Calculate cross entropy loss, apply label smoothing if needed. '''
 
@@ -43,6 +52,8 @@ def to_tensor(x, pad_id, device):
 def sample_permutation(seq, vocab):
     score = torch.rand_like(seq.float())
     score.masked_fill_(seq == vocab.pad, 1) # always put pads last
+    score.masked_fill_(seq == vocab.bos, -1) # always keep <bos>
+    score.masked_fill_(seq == vocab.eos, -1) # always keep <eos>
     indices = score.argsort()
     rank = torch.zeros_like(seq)
     rank[torch.arange(len(seq)).unsqueeze(1), indices] = \
@@ -50,8 +61,9 @@ def sample_permutation(seq, vocab):
     return rank
 
 def get_canvas(seq, keep, n, vocab):
-    res = get_canvas_cpp.get_canvas(seq.tolist(), keep.tolist(), n.tolist(), vocab.blank)
-    pad = [vocab.pad, -1, -1, -1, -1, -1]
+    """Returns canvas, rest, loc"""
+    res = get_canvas_cpp.get_insertion_canvas(seq.tolist(), keep.tolist(), n.tolist())
+    pad = [vocab.pad, -1, -1]
     for i in range(len(res)):
         res[i] = to_tensor(res[i], pad[i], seq.device)
     return res
@@ -95,6 +107,7 @@ class LM(nn.Module):
             n_layers=args.n_layers, n_head=args.n_head, d_k=args.d_k, d_v=args.d_v,
             dropout=args.dropout)
 
+        self.pool_out = nn.Linear(2 * args.d_model, args.d_model)
         self.word = nn.Linear(args.d_model, vocab.size, bias=False)
         nn.init.xavier_normal_(self.word.weight)
         self.x_logit_scale = 1.
@@ -121,42 +134,47 @@ class LM(nn.Module):
         output, *_ = self.G(canvas, pos.to(canvas.device))
         return output
 
-    def get_loss(self, seq, canvas, blanks, rest, loc, lb, rb):
+    def get_loss(self, seq, canvas, rest, loc, mask):
         count = (rest != -1).sum(1)
         output = self(canvas)
-        output_blank = collect(output, blanks)
-
-        logits_loc = self.loc(output_blank).squeeze(-1)
-        logits_loc[blanks == -1] = float('-inf')
+        features = self.pool_out(
+                torch.cat((output[:, :-1, :], output[:, 1:, :]), dim=-1)
+        )
+        #  output_blank = collect(output, blanks)
+        logits_loc = self.loc(features).squeeze(-1)
+        logits_loc[~mask] = float('-inf')
         nll_loc = -F.log_softmax(logits_loc, 1)
         loss_loc = collect(nll_loc, loc)
         loss_loc = loss_loc.sum(1) / count.float()
-        output_loc = collect(output_blank, loc)
+
+        output_loc = collect(features, loc)
 
         logits_word = self.word(output_loc) * self.x_logit_scale
         target = collect(seq, rest, self.vocab.pad)
         loss_word = seq_cross_entropy(logits_word, target, self.vocab.pad,
             self.args.label_smoothing)
         loss_word = loss_word.sum(1) / count.float()
-        output_word = torch.cat((output_loc, self.G.src_word_emb(target)), -1)
-
-        logits_lrb = self.lrb(output_word)
-        loss_lrb = seq_cross_entropy(logits_lrb, lb * 2 + rb, -3)
-        loss_lrb = loss_lrb.sum(1) / count.float()
-
-        return loss_loc, loss_word, loss_lrb
+        # output_word = torch.cat((output_loc, self.G.src_word_emb(target)), -1)
+        return loss_loc, loss_word
 
     def losses(self, seq, n):
-        k = (torch.rand_like(n.float()) * n.float()).long() # sample k from 0 to n-1
+        """
+        seq is a tensor of tokens in batch:
+            <bos> tok tok ... tok <eos> <pad> <pad>
+        n is the number of actual tokens
+        """
+        k = (torch.rand_like(n.float()) * (n + 1).float()).long() # sample k from 0 to n
         rank = sample_permutation(seq, self.vocab)
-        keep = (rank < k.unsqueeze(1))
-        canvas, blanks, rest, loc, lb, rb = get_canvas(seq, keep, n, self.vocab)
-        loss_loc, loss_word, loss_lrb = self.get_loss(seq, canvas, blanks, rest, loc, lb, rb)
-        nll_lb = (loss_loc + loss_word + loss_lrb) * n.float() - (n + 1).float().lgamma()
+        keep = (rank < (k + 2).unsqueeze(1)) # keep <bos>, <eos> and k tokens
+        canvas, rest, loc = get_canvas(seq, keep, n, self.vocab)
+        # canvas has <bos> + k tokens + <eos>
+        mask = (new_arange(canvas) < (k + 1).unsqueeze(1))[:, :-1] # mask for logits_loc
+        loss_loc, loss_word  = self.get_loss(seq, canvas, rest, loc, mask)
+        # TODO: ask tianxiao about n vs n+1
+        nll_lb = (loss_loc + loss_word) * n.float() - (n + 1).float().lgamma()
         return {'loss' : nll_lb.sum() / n.sum(),
                 'loc'  : loss_loc.mean(),
                 'word' : loss_word.mean(),
-                'lrb'  : loss_lrb.mean()
                }
 
     def nll_mc(self, seq, n, m):
@@ -167,6 +185,7 @@ class LM(nn.Module):
 
         Note: sentences in the batch must have the same length
         """
+        # TODO
         a = []
         for _ in range(m):
             rank = sample_permutation(seq, self.vocab)

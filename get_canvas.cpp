@@ -4,6 +4,43 @@
 
 using namespace std;
 
+vector<vector<vector<uint32_t>>> get_insertion_canvas(
+    vector<vector<uint32_t>>& seq,
+    vector<vector<bool>>& keep,
+    vector<uint32_t> n
+    ) {
+  vector<vector<uint32_t>> batch_canvas, batch_rest, batch_loc;
+  for (uint32_t b = 0; b < seq.size(); b++) {
+    vector<uint32_t> indices, canvas, rest, loc;
+    for (uint32_t i = 0; i < n[b] + 2; i++) {
+      if (keep[b][i]) {
+        canvas.push_back(seq[b][i]);
+        indices.push_back(i);
+      } else {
+        rest.push_back(i);
+      }
+    }
+    if (rest.size() == 0) {
+      rest.push_back(n[b] + 1);
+      loc.push_back(n[b]);
+    }
+    else {
+      uint32_t j =0;
+      for (uint32_t i: rest) {
+        while (indices[j] < i) {
+          j++;
+        }
+        loc.push_back(j-1);
+      }
+    }
+
+    batch_canvas.push_back(canvas);
+    batch_rest.push_back(rest);
+    batch_loc.push_back(loc);
+  }
+  return {batch_canvas, batch_rest, batch_loc};
+}
+
 vector<vector<vector<uint32_t>>> get_canvas(
     vector<vector<uint32_t>>& seq,
     vector<vector<bool>>& keep,
@@ -44,4 +81,5 @@ vector<vector<vector<uint32_t>>> get_canvas(
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("get_canvas", &get_canvas, "get_canvas");
+  m.def("get_insertion_canvas", &get_insertion_canvas, "get_insertion_canvas");
 }

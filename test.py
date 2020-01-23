@@ -6,7 +6,7 @@ import torch
 import torch.nn.functional as F
 
 from vocab import Vocab
-from model import LM, collect
+from model import LM, collect, new_arange
 from utils import set_seed, load_data, load_sent, strip_eos
 from batchify import get_batches
 from train import evaluate
@@ -63,15 +63,6 @@ def select(logits, decode):
         return torch.multinomial(logits.exp(), num_samples=1)[0]
     else:
         return logits.argmax()
-
-def new_arange(x, *size):
-    """
-    Return a Tensor of `size` filled with a range function on the device of x.
-    If size is empty, using the size of the variable x.
-    """
-    if len(size) == 0:
-        size = x.size()
-    return torch.arange(size[-1], device=x.device).expand(*size).contiguous()
 
 def get_index_from_mask(blank_mask):
     pad = -1
