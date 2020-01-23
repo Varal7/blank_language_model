@@ -125,8 +125,8 @@ def main():
     logging(str(args), log_file)
 
     # Prepare data
-    train_sents = load_data(args.train, args.add_eos, args.cat_sent, args.max_len)
-    valid_sents = load_data(args.valid, args.add_eos, args.cat_sent, args.max_len)
+    train_sents = load_data(args.train, args.add_eos, args.cat_sent, args.max_len - 2)
+    valid_sents = load_data(args.valid, args.add_eos, args.cat_sent, args.max_len - 2)
     vocab_file = os.path.join(args.save_dir, 'vocab.txt')
     if not os.path.isfile(vocab_file):
         Vocab.build(train_sents, vocab_file, args.vocab_size)
