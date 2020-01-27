@@ -115,7 +115,7 @@ def evaluate(model, device, batches, m):
                 total_nll += model.nll_mc(seq, n, m).sum().item()
             else:
                 total_nll += (losses['loss'] * n.sum()).item()
-            n_words += n.sum().item()
+            n_words += (n + 1).sum().item() # n + 1 because of eos
     meters['ppl'].update(np.exp(total_nll / n_words))
     return meters
 

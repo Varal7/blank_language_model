@@ -6,7 +6,7 @@ import torch
 import torch.nn.functional as F
 
 from vocab import Vocab
-from model import LM,
+from model import LM
 from utils import set_seed, load_data, load_sent, strip_eos
 from batchify import get_batches
 from train import evaluate
@@ -103,7 +103,7 @@ def main():
     out_path = os.path.join(args.checkpoint, args.output)
 
     if args.eval:
-        sents = load_data(args.eval, model.args.add_eos, model.args.cat_sent, model.args.max_len)
+        sents = load_data(args.eval, model.args.add_eos, model.args.cat_sent, model.args.max_len - 2)
         batches, _ = get_batches(sents, vocab, args.max_tok, same_len=True)
         meters = evaluate(model, device, batches, args.n_mc)
         print(' '.join(['{} {:.2f},'.format(k, meter.avg)

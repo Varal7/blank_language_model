@@ -170,7 +170,7 @@ class LM(nn.Module):
         mask = (new_arange(canvas) < (k + 1).unsqueeze(1))[:, :-1] # mask for logits_loc
         loss_loc, loss_word  = self.get_loss(seq, canvas, rest, loc, mask)
         nll_lb = (loss_loc + loss_word) * (n + 1).float() - (n + 1).float().lgamma()
-        return {'loss' : nll_lb.sum() / n.sum(),
+        return {'loss' : nll_lb.sum() / (n + 1).sum(),
                 'loc'  : loss_loc.mean(),
                 'word' : loss_word.mean(),
                }
