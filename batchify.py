@@ -36,7 +36,7 @@ def get_batches(data, vocab, max_tokens, same_len=False):
     i = 0
     while i < len(data):
         j = i
-        while j < len(data) and len(data[j]) * (j-i+1) <= max_tokens and \
+        while j < len(data) and (len(data[j]) + 2) * (j-i+1) <= max_tokens and \
             (not same_len or len(data[j]) == len(data[i])):
             j += 1
         batches.append(get_batch(data[i: j], vocab))
