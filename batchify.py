@@ -29,7 +29,7 @@ def get_batches(data, vocab, batch_size, same_len=False):
 
 def get_batches(data, vocab, max_tokens, same_len=False):
     order = range(len(data))
-    z = sorted(zip(order, data), key=lambda i: len(i[1]))
+    z = sorted(zip(order, data), key=lambda i: -len(i[1]))
     order, data = zip(*z)
 
     batches = []

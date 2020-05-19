@@ -106,7 +106,8 @@ def evaluate(model, device, batches, m):
     total_nll = 0.
     n_words = 0
     with torch.no_grad():
-        for batch in tqdm(batches):
+        pbar = tqdm(batches, ncols=80)
+        for batch in pbar:
             seq, n = map(lambda x: x.to(device), batch)
             losses = model.losses(seq, n)
             for k, v in losses.items():
@@ -116,6 +117,9 @@ def evaluate(model, device, batches, m):
             else:
                 total_nll += (losses['loss'] * n.sum()).item()
             n_words += (n + 1).sum().item() # n + 1 because of eos
+            pbar.set_description("n_mc: {}, tot_nll: {:0.4f}, n_words:{}, ppl: {:0.4f}".format(m, total_nll, n_words, np.exp(total_nll / n_words)))
+    meters['total_nll'].update(total_nll)
+    meters['n_words'].update(n_words)
     meters['ppl'].update(np.exp(total_nll / n_words))
     return meters
 
