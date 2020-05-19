@@ -21,8 +21,8 @@ class Vocab(object):
 
     @staticmethod
     def build(sents, path, size):
-        voc = ['<pad>', '<unk>', '<first>', '<last>', '<eos>' '<blank>']
-        occ = [0, 0, 0, 0, 0]
+        voc = ['<pad>', '<unk>', '<first>', '<last>', '<eos>', '<blank>']
+        occ = [0 for _ in voc]
 
         cnt = Counter([w for s in sents for w in s])
         for i, v in enumerate(voc):

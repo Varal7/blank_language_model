@@ -22,7 +22,7 @@ class InsTLM(pl.LightningModule):
         self.d_model = hparams.d_model
 
         self.G = Encoder(
-            n_src_vocab=vocab.size, len_max_seq=hparams.max_len,
+            n_src_vocab=vocab.size, len_max_seq=hparams.max_len + 2,
             d_word_vec=hparams.d_model, d_model=hparams.d_model, d_inner=hparams.d_inner_hid,
             n_layers=hparams.n_layers, n_head=hparams.n_head, d_k=hparams.d_k, d_v=hparams.d_v,
             dropout=hparams.dropout)
@@ -34,6 +34,9 @@ class InsTLM(pl.LightningModule):
         if hparams.share_emb_prj_weight:
             self.word.weight = self.G.src_word_emb.weight
             self.x_logit_scale = (hparams.d_model ** -0.5)
+
+        self.loc = nn.Linear(hparams.d_model, 1)
+
 
     @staticmethod
     def add_model_specific_args(parent_parser):
@@ -128,7 +131,7 @@ class InsTLM(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         seq, n, n_real = map(lambda x: x.squeeze(0), batch)
-        losses = self(seq, n, n_real)
+        losses = self.losses(seq, n, n_real)
         losses['log'] = {**losses}
         return losses
 

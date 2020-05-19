@@ -9,8 +9,7 @@ import torch
 
 import pytorch_lightning as pl
 from pytorch_lightning.logging import NeptuneLogger, TensorBoardLogger
-from pytorch_lightning.callbacks import ModelCheckpoint
-from logger import LearningRateLogger # TODO use the thing
+from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateLogger
 
 from model import InsTLM
 from vocab import Vocab

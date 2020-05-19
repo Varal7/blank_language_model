@@ -6,7 +6,7 @@ import torch.nn.functional as F
 
 from torch.utils.cpp_extension import load
 
-get_canvas = load(name="canvas", sources=["get_canvas.cpp"])
+get_canvas_cpp = load(name="canvas", sources=["get_canvas.cpp"])
 
 def set_seed(seed):     # set the random seed for reproducibility
     random.seed(seed)
@@ -57,7 +57,7 @@ def sample_permutation(seq, vocab):
 
 def get_ins_canvas(seq, keep, n, vocab):
     """Returns canvas, rest, loc"""
-    res = get_canvas.get_insertion_canvas(seq.tolist(), keep.tolist(), n.tolist())
+    res = get_canvas_cpp.get_insertion_canvas(seq.tolist(), keep.tolist(), n.tolist())
     pad = [vocab.pad, -1, -1]
     for i in range(len(res)):
         res[i] = to_tensor(res[i], pad[i], seq.device)
