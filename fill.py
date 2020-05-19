@@ -70,7 +70,7 @@ def write(file, sents, write_mid):
 
 
 def fill(seq, blanks, decode):
-    seq = torch.LongTensor([vocab.bos] + seq + [vocab.eos]).to(device)
+    seq = torch.LongTensor([vocab.first] + seq + [vocab.last]).to(device)
     sent_mid = [[vocab.idx2word[id] for id in seq[1:-1]]]
     mandatory_blanks = np.array([t for t in blanks])
     if len(blanks) > 0:

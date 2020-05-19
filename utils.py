@@ -1,36 +1,92 @@
 import random
 import numpy as np
 import torch
+import math
+import torch.nn.functional as F
+
+from torch.utils.cpp_extension import load
+
+get_canvas = load(name="canvas", sources=["get_canvas.cpp"])
 
 def set_seed(seed):     # set the random seed for reproducibility
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
 
 def strip_eos(sents):
     return [sent[:sent.index('<eos>')] if '<eos>' in sent else sent
         for sent in sents]
 
-def load_sent(path, add_eos=False):
-    sents = []
-    with open(path) as f:
-        for line in f:
-            s = line.split()
-            if add_eos:
-                s += ['<eos>']
-            sents.append(s)
-    return sents
+def new_arange(x, *size):
+    """
+    Return a Tensor of `size` filled with a range function on the device of x.
+    If size is empty, using the size of the variable x.
+    """
+    if len(size) == 0:
+        size = x.size()
+    return torch.arange(size[-1], device=x.device).expand(*size).contiguous()
 
-def load_data(path, add_eos=False, cat_sent=False, max_len=50):
-    sents = load_sent(path, add_eos)
-    if cat_sent:
-        d = [w for s in sents for w in s]
-        sents = [d[i: i+max_len] for i in range(0, len(d), max_len)]
-    else:
-        n = len(sents)
-        sents = [s for s in sents if len(s) <= max_len]
-        print('# discarded sents:', n - len(sents))
-    return sents
+def seq_cross_entropy(pred, gold, pad):
+    ''' Calculate cross entropy loss'''
+
+    gold_shape = gold.shape
+    pred = pred.view(-1, pred.size(-1))
+    gold = gold.view(-1)
+    loss = F.cross_entropy(pred, gold, ignore_index=pad, reduction='none')
+
+    return loss.view(gold_shape)
+
+
+def to_tensor(x, pad_id, device):
+    max_len = max([len(xi) for xi in x])
+    x_ = [xi + [pad_id] * (max_len - len(xi)) for xi in x]
+    return torch.tensor(x_).to(device)
+
+
+def sample_permutation(seq, vocab):
+    score = torch.rand_like(seq.float())
+    score.masked_fill_(seq == vocab.pad, 1)  # always put pads last
+    score.masked_fill_(seq == vocab.first, -1)  # always keep <first>
+    score.masked_fill_(seq == vocab.last, -1)  # always keep <last>
+    indices = score.argsort()
+    rank = torch.zeros_like(seq)
+    rank[torch.arange(len(seq)).unsqueeze(1), indices] = \
+        torch.arange(seq.size(1), device=seq.device)
+    return rank
+
+def get_ins_canvas(seq, keep, n, vocab):
+    """Returns canvas, rest, loc"""
+    res = get_canvas.get_insertion_canvas(seq.tolist(), keep.tolist(), n.tolist())
+    pad = [vocab.pad, -1, -1]
+    for i in range(len(res)):
+        res[i] = to_tensor(res[i], pad[i], seq.device)
+    return res
+
+
+def collect(input, index, padding_idx=0):
+    """
+    Performs a batched index select where index is given for each example
+    Args:
+        input: tensor of shape (B, T_1, dim_2, dim_3, ...)
+        index: tensor of shape (B, T_2)
+    Returns:
+        tensor of shape (B, T_2, dim_2, dim_3, ...)
+    """
+    # Add a column of padding_idx at index 0 (of dim 1)
+    view = list(input.shape)
+    view[1] = 1
+    padding_column = input.new_ones(view) * padding_idx
+    input = torch.cat([padding_column, input], 1)
+
+    # Expand index to compatible size for gather
+    for i in range(2, len(input.shape)):
+        index = index.unsqueeze(i)
+
+    view[0] = -1
+    view[1] = -1
+    index = index.expand(view)
+    return torch.gather(input, 1, index + 1)
 
 def write_sent(sents, path):
     with open(path, 'w') as f:
@@ -44,9 +100,6 @@ def write_doc(docs, path):
                 f.write(' '.join(s) + '\n')
             f.write('\n')
 
-def logging(s, path, print_=True):
-    if print_:
-        print(s)
-    if path:
-        with open(path, 'a+') as f:
-            f.write(s + '\n')
+class Bunch(object):
+    def __init__(self, adict):
+        self.__dict__.update(adict)

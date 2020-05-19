@@ -14,13 +14,14 @@ class Vocab(object):
 
         self.pad = self.word2idx['<pad>']
         self.unk = self.word2idx['<unk>']
-        self.bos = self.word2idx['<bos>']
+        self.first = self.word2idx['<first>']
+        self.last = self.word2idx['<last>']
         self.eos = self.word2idx['<eos>']
         self.blank = self.word2idx['<blank>']
 
     @staticmethod
     def build(sents, path, size):
-        voc = ['<pad>', '<unk>', '<bos>', '<eos>', '<blank>']
+        voc = ['<pad>', '<unk>', '<first>', '<last>', '<eos>' '<blank>']
         occ = [0, 0, 0, 0, 0]
 
         cnt = Counter([w for s in sents for w in s])

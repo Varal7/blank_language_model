@@ -62,7 +62,7 @@ def select(logits, decode):
         return logits.argmax()
 
 def generate(seq, model, vocab, device, decode):
-    seq = torch.LongTensor([vocab.bos] + seq + [vocab.eos]).to(device)
+    seq = torch.LongTensor([vocab.first] + seq + [vocab.last]).to(device)
     sent_mid = [[vocab.idx2word[id] for id in seq[1:-1]]]
     while len(seq) <= model.args.max_len:
         output = model(seq.unsqueeze(0))
