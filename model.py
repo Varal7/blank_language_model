@@ -102,6 +102,7 @@ class InsTLM(pl.LightningModule):
 
         #  parser.add_argument('--lr_decay', type=float, default=4, metavar='R',
                             #  help='learning rate decay factor (reduce_on_plateau)')
+
         return parser
 
     def configure_optimizers(self):
@@ -128,22 +129,20 @@ class InsTLM(pl.LightningModule):
 
             return [optimizer], [{'scheduler': scheduler, 'interval': 'step'}]
 
-
     def training_step(self, batch, batch_idx):
         seq, n, n_real = map(lambda x: x.squeeze(0), batch)
-        losses = self.losses(seq, n, n_real)
+        losses = self("losses", seq, n, n_real)
         losses['log'] = {**losses}
         return losses
-
 
     def validation_step(self, batch, batch_idx):
         seq, n, n_real = map(lambda x: x.squeeze(0), batch)
         if seq.size(1) == 0:
             raise ValueError
-        losses = self.losses(seq, n, n_real)
+        losses = self("losses", seq, n, n_real)
         if self.hparams.n_mc > 0:
             print("n_mc: {}:".format(self.hparams.n_mc))
-            nll = self.nll_mc(seq, n, self.hparams.n_mc).sum()
+            nll = self("nll_mc", seq, n, self.hparams.n_mc).sum()
         else:
             nll = (losses['loss'] * n_real.sum())
         n_words = n_real.sum()
@@ -181,15 +180,22 @@ class InsTLM(pl.LightningModule):
         self.logger.log_metrics(logs)
         return {'test_loss': logs['test_loss'], 'log': logs}
 
-    def forward(self, canvas):
+    def forward_encoder(self, canvas):
         pos = (1 + torch.arange(canvas.size(1))).repeat(len(canvas), 1)
         pos[canvas == self.vocab.pad] = 0
         output, *_ = self.G(canvas, pos.to(canvas.device))
         return output
 
+    def forward(self, action, *args):
+        if action == "nll_mc":
+            return self.nll_mc(*args)
+        elif action == "losses":
+            return self.losses(*args)
+        raise NotImplementedError
+
     def get_loss(self, seq, canvas, rest, loc, mask):
         count = (rest != -1).sum(1)
-        output = self(canvas)
+        output = self.forward_encoder(canvas)
         features = self.pool_out(
                 torch.cat((output[:, :-1, :], output[:, 1:, :]), dim=-1)
         )

@@ -1,6 +1,30 @@
 # blank_language_model
 
 ```
+CUDA_VISIBLE_DEVICES=1 python train.py \
+  --project_name varal7/blm \
+  --train /data/rsg/nlp/tianxiao/blank_language_model/data/wikitext-103/train.bpe \
+  --valid /data/rsg/nlp/tianxiao/blank_language_model/data/wikitext-103/valid.bpe \
+  --name insT \
+  --add_eos \
+  --cat_sent \
+  --max_len 256 \
+  --max_tok 16384 \
+  --checkpoint_every 0 \
+  --lr 1e-4 \
+  --weight_decay 1e-5 \
+  --share_emb_prj_weight \
+  --accum_grad 8 \
+  --dropout 0.3 \
+  --lr_schedule fixed \
+  --warmup_steps 30000 \
+  --train_steps 2000000 \
+  --fp16 --fp16_opt_level O2 \
+  --root_dir /data/scratch/quach/serialize/blank_project/wiki103-ins/
+```
+
+
+```
 CUDA_VISIBLE_DEVICES=3 python train.py \
 --train /data/rsg/nlp/tianxiao/blank_language_model/data/yahoo/train.txt --valid /data/rsg/nlp/tianxiao/blank_language_model/data/yahoo/valid.txt \
 --vocab_size 20000 --max_len 200 \
