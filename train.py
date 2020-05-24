@@ -56,6 +56,8 @@ def main(args):
         period=0,
     )
 
+    args.multigpu = torch.cuda.device_count() > 1
+
     trainer = pl.Trainer(
         val_check_interval=args.checkpoint_every if args.checkpoint_every > 0 else 1.0
 ,
@@ -72,7 +74,7 @@ def main(args):
         log_gpu_memory=True,
         gpus=args.gpus,
         num_sanity_val_steps=1,
-        distributed_backend='ddp' if torch.cuda.device_count() > 1 else None
+        distributed_backend='ddp' if args.multigpu else None
     )
 
     train_sents = load_data(args.train, args.add_eos, args.cat_sent, args.max_len)
@@ -85,8 +87,8 @@ def main(args):
         Vocab.build(train_sents, vocab_file, args.vocab_size)
     vocab = Vocab(vocab_file)
 
-    train_dl = get_train_dataloader(train_sents, vocab, args.max_tok, data_workers=args.data_workers)
-    val_dl = get_eval_dataloader(valid_sents, vocab, args.eval_max_tok, data_workers=args.data_workers)
+    train_dl = get_train_dataloader(train_sents, vocab, args.max_tok, data_workers=args.data_workers if not args.multigpu else 0)
+    val_dl = get_eval_dataloader(valid_sents, vocab, args.eval_max_tok, data_workers=args.data_workers if not args.multigpu else 0)
 
     model = InsTLM(vocab, args)
 
