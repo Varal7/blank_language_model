@@ -1,4 +1,5 @@
 import argparse
+from argparse import Namespace
 import time
 import os
 import random
@@ -88,7 +89,18 @@ def main(args):
     val_dl = get_eval_dataloader(valid_sents, vocab, args.eval_max_tok, data_workers=args.data_workers)
 
     model = InsTLM(vocab, args)
+
+    if args.load_checkpoint:
+        ckpt = torch.load(args.load_checkpoint)
+        model.load_state_dict(ckpt['state_dict'])
+
     trainer.fit(model, train_dataloader=train_dl, val_dataloaders=val_dl)
+
+def get_args(path):
+    print('Load model from {}'.format(path))
+    ckpt = torch.load(path)
+    args = ckpt['hparams']
+    return args
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -101,8 +113,8 @@ if __name__ == '__main__':
     parser.add_argument('--name', default='default', help='model name')
     parser.add_argument('--project_name', default='varal7/blm', help='project name')
 
-    #  parser.add_argument('--load_model', default='', metavar='FILE',
-                        #  help='path to load checkpoint if specified')
+    parser.add_argument('--load_checkpoint', default=None, metavar='FILE',
+                        help='path to load checkpoint if specified')
 
     parser.add_argument('--accum_grad', type=int, default=1, metavar='N',
                         help='accumulate gradients across N minibatches.')
@@ -132,5 +144,15 @@ if __name__ == '__main__':
 
     parser = InsTLM.add_model_specific_args(parser)
     parser = pl.Trainer.add_argparse_args(parser)
+
     args = parser.parse_args()
+
+    if args.load_checkpoint:
+        path = args.load_checkpoint
+        args_dict = get_args(args.load_checkpoint)
+        args = Namespace(**args_dict)
+        args.load_checkpoint = path
+    else:
+        args.load_checkpoint = None
+
     main(args)
