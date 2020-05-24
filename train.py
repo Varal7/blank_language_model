@@ -104,9 +104,9 @@ def get_args(path):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--train', metavar='FILE', required=True,
+    parser.add_argument('--train', metavar='FILE',
                         help='path to training file')
-    parser.add_argument('--valid', metavar='FILE', required=True,
+    parser.add_argument('--valid', metavar='FILE',
                         help='path to validation file')
     parser.add_argument('--root_dir', default='checkpoints', metavar='DIR',
                         help='directory to save checkpoints and outputs')
