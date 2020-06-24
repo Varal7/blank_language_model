@@ -3,6 +3,8 @@ import numpy as np
 import torch
 import math
 import torch.nn.functional as F
+import os
+import re
 
 from torch.utils.cpp_extension import load
 
@@ -49,16 +51,48 @@ def sample_permutation(seq, vocab):
     score.masked_fill_(seq == vocab.pad, 1)  # always put pads last
     score.masked_fill_(seq == vocab.first, -1)  # always keep <first>
     score.masked_fill_(seq == vocab.last, -1)  # always keep <last>
+    score.masked_fill_(seq == vocab.missing, -1) # always keep missings
     indices = score.argsort()
     rank = torch.zeros_like(seq)
     rank[torch.arange(len(seq)).unsqueeze(1), indices] = \
         torch.arange(seq.size(1), device=seq.device)
     return rank
 
+def get_known_length_canvas(seq, keep, n, vocab):
+    """Create the canvas with blanks of known length
+    returns the list of parts necessary to train the model
+
+    Args:
+        seq: sequence of tokens
+        keep: mask over size of tokens
+        vocab: the vocabulary, assuming that blank_0, blank_1, etc. have consecutive indices
+
+    Returns:
+        - canvas: list of tokens where consecutive masked out tokens
+        have been replaced by the <blank_**> token.
+        - blanks: indices in canvas where there are <blank_**> tokens
+        - rest: indices in keep_mask where there are False (became blank)
+        - loc: indices of how rest relates to blanks
+        - lb: size of the blank on the left that has to be opened
+    """
+
+    res = get_canvas_cpp.get_known_length_canvas(seq.tolist(), keep.tolist(), n.tolist(), vocab.blank)
+    pad = [vocab.pad, -1, -1, -1, -1, -1]
+    for i in range(len(res)):
+        res[i] = to_tensor(res[i], pad[i], seq.device)
+    return res
+
 def get_ins_canvas(seq, keep, n, vocab):
     """Returns canvas, rest, loc"""
     res = get_canvas_cpp.get_insertion_canvas(seq.tolist(), keep.tolist(), n.tolist())
     pad = [vocab.pad, -1, -1]
+    for i in range(len(res)):
+        res[i] = to_tensor(res[i], pad[i], seq.device)
+    return res
+
+def get_canvas(seq, keep, n, vocab):
+    res = get_canvas_cpp.get_canvas(seq.tolist(), keep.tolist(), n.tolist(), vocab.blank)
+    pad = [vocab.pad, -1, -1, -1, -1, -1]
     for i in range(len(res)):
         res[i] = to_tensor(res[i], pad[i], seq.device)
     return res
@@ -103,3 +137,15 @@ def write_doc(docs, path):
 class Bunch(object):
     def __init__(self, adict):
         self.__dict__.update(adict)
+
+def parse_epoch(filename):
+    m = re.search("_ckpt_epoch_(.*).ckpt", filename)
+    if m is None:
+        return -1
+    return int(m.group(1))
+
+def get_last_model_path(dir):
+    last, epoch = sorted([(filename, parse_epoch(filename)) for filename in  os.listdir(dir)], key=lambda x: -x[1])[0]
+    path = os.path.join(dir, last)
+    return epoch, path
+

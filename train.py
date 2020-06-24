@@ -12,7 +12,7 @@ import pytorch_lightning as pl
 from pytorch_lightning.logging import NeptuneLogger, TensorBoardLogger
 from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateLogger
 
-from model import InsTLM
+from models import InsTLM, BLM, LBLM
 from vocab import Vocab
 from dataset import load_data, get_train_dataloader, get_eval_dataloader
 from utils import set_seed
@@ -143,8 +143,19 @@ if __name__ == '__main__':
     parser.add_argument('--no_cuda', action='store_true',
                         help='disable CUDA')
 
+    parser.add_argument('--model_type', choices=['blm', 'inst', 'lblm'],
+                        help='disable CUDA')
 
-    parser = InsTLM.add_model_specific_args(parser)
+    temp_args, _ = parser.parse_known_args()
+
+    # let the model add what it wants
+    if temp_args.model_name == 'blm':
+        parser = BLM.add_model_specific_args(parser)
+    elif temp_args.model_name == 'inst':
+        parser = InsTLM.add_model_specific_args(parser)
+    elif temp_args.model_name == 'lblm':
+        parser = LBLM.add_model_specific_args(parser)
+
     parser = pl.Trainer.add_argparse_args(parser)
 
     args = parser.parse_args()
