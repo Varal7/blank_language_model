@@ -143,18 +143,20 @@ if __name__ == '__main__':
     parser.add_argument('--no_cuda', action='store_true',
                         help='disable CUDA')
 
-    parser.add_argument('--model_type', choices=['blm', 'inst', 'lblm'],
-                        help='disable CUDA')
+    parser.add_argument('--model_type', choices=['blm', 'inst', 'lblm'], default='blm',
+                        help='Model type: blm, inst or lblm')
 
     temp_args, _ = parser.parse_known_args()
 
     # let the model add what it wants
-    if temp_args.model_name == 'blm':
+    if temp_args.model_type == 'blm':
         parser = BLM.add_model_specific_args(parser)
-    elif temp_args.model_name == 'inst':
+    elif temp_args.model_type == 'inst':
         parser = InsTLM.add_model_specific_args(parser)
-    elif temp_args.model_name == 'lblm':
+    elif temp_args.model_type == 'lblm':
         parser = LBLM.add_model_specific_args(parser)
+    else:
+        raise ValueError
 
     parser = pl.Trainer.add_argparse_args(parser)
 

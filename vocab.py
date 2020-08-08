@@ -16,12 +16,13 @@ class Vocab(object):
         self.unk = self.word2idx['<unk>']
         self.first = self.word2idx['<first>']
         self.last = self.word2idx['<last>']
+        self.missing = self.word2idx['<missing>']
         self.eos = self.word2idx['<eos>']
         self.blank = self.word2idx['<blank>']
 
     @staticmethod
     def build(sents, path, size):
-        voc = ['<pad>', '<unk>', '<first>', '<last>', '<eos>', '<blank>']
+        voc = ['<pad>', '<unk>', '<first>', '<last>', '<eos>', '<blank>', '<missing>']
         occ = [0 for _ in voc]
 
         cnt = Counter([w for s in sents for w in s])

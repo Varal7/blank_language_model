@@ -1,11 +1,13 @@
 # blank_language_model
 
 ```
-CUDA_VISIBLE_DEVICES=1 python train.py \
+
+python train.py \
   --project_name varal7/blm \
   --train /data/rsg/nlp/tianxiao/blank_language_model/data/wikitext-103/train.bpe \
   --valid /data/rsg/nlp/tianxiao/blank_language_model/data/wikitext-103/valid.bpe \
-  --name insT \
+  --name insT-debug \
+  --model_type inst \
   --add_eos \
   --cat_sent \
   --max_len 256 \
@@ -20,7 +22,8 @@ CUDA_VISIBLE_DEVICES=1 python train.py \
   --warmup_steps 30000 \
   --train_steps 2000000 \
   --fp16 --fp16_opt_level O2 \
-  --root_dir /data/scratch/quach/serialize/blank_project/wiki103-ins/
+  --root_dir /data/scratch/quach/serialize/blank_project/debug
+
 ```
 
 
