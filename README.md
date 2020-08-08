@@ -1,5 +1,31 @@
 # blank_language_model
 
+``
+python train.py \
+  --project_name varal7/blm \
+  --train /data/rsg/nlp/quach/blank_project/blank_language_model/data/phi-ml/train.txt \
+  --valid /data/rsg/nlp/quach/blank_project/blank_language_model/data/phi-ml/valid.txt \
+  --name ancient-insT-debug \
+  --model_type inst \
+  --add_eos \
+  --cat_sent \
+  --max_len 1024 \
+  --max_tok 16384 \
+  --checkpoint_every 0 \
+  --vocab_size 200 \
+  --n_mc 0 \
+  --lr 1e-4 \
+  --weight_decay 1e-5 \
+  --share_emb_prj_weight \
+  --accum_grad 8 \
+  --dropout 0.3 \
+  --lr_schedule fixed \
+  --train_steps 6000000 \
+  --root_dir /data/scratch/quach/phi-ml/inst/debug
+```
+
+--root_dir /data/scratch/quach/phi-ml/inst/blank_steps600000_cat1024_share_known_len_wd1e-5_drop0.3_lr1e-4/
+
 ```
 
 python train.py \

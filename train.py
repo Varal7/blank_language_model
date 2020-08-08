@@ -160,7 +160,7 @@ if __name__ == '__main__':
     temp_args, _ = parser.parse_known_args()
 
     # let the model add the options it needs
-    parser = get_model_class(args.model_type).add_model_specific_args(parser)
+    parser = get_model_class(temp_args.model_type).add_model_specific_args(parser)
 
     parser = pl.Trainer.add_argparse_args(parser)
 
