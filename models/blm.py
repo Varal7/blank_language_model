@@ -8,7 +8,7 @@ import math
 from tqdm import tqdm
 
 from transformer.Models import Encoder
-from utils import get_canvas, sample_permutation, seq_cross_entropy, set_seed, to_tensor, collect
+from utils import get_canvas, sample_permutation, seq_cross_entropy, set_seed, to_tensor, collect, batch_randint
 
 
 class BLM(pl.LightningModule):
@@ -240,7 +240,8 @@ class BLM(pl.LightningModule):
         n is the number of BPE tokens
         n_real is the number of real words, including <eos> as it is customary when reporting PPL
         """
-        k = (torch.rand_like(n.float()) * n.float()).long() # sample k from 0 to n-1
+        #  k = (torch.rand_like(n.float()) * n.float()).long() # sample k from 0 to n-1
+        k = batch_randint(0, n - 1)
         rank = sample_permutation(seq, self.vocab)
         keep = (rank < k.unsqueeze(1))
         canvas, blanks, rest, loc, lb, rb = get_canvas(seq, keep, n, self.vocab)

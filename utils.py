@@ -39,6 +39,9 @@ def seq_cross_entropy(pred, gold, pad):
 
     return loss.view(gold_shape)
 
+def batch_randint(start, batch_end):
+    # Sample k from start to end (both inclusive) for start end in batch_end
+    return start + (torch.rand_like(batch_end.float()) * (batch_end - start + 1).float()).long()
 
 def to_tensor(x, pad_id, device):
     max_len = max([len(xi) for xi in x])

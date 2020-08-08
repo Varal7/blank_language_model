@@ -8,7 +8,7 @@ import math
 from tqdm import tqdm
 
 from transformer.Models import Encoder
-from utils import get_ins_canvas, sample_permutation, seq_cross_entropy, set_seed, to_tensor, collect, new_arange
+from utils import get_ins_canvas, sample_permutation, seq_cross_entropy, set_seed, to_tensor, collect, new_arange, batch_randint
 
 
 class InsTLM(pl.LightningModule):
@@ -216,16 +216,18 @@ class InsTLM(pl.LightningModule):
 
     def losses(self, seq, n, n_real):
         """
-        seq is a tensor of tokens in batch:
+        seq is a tensor of tokens in batch, starting with <first>, endling with <last> and optionally including <eos>
             <first> tok tok ... tok <last> <pad> <pad>
         n is the number of BPE tokens
         n_real is the number of real words
         """
-        k = (torch.rand_like(n.float()) * (n + 1).float()).long() # sample k from 0 to n
+        #  k = (torch.rand_like(n.float()) * (n + 1).float()).long() # sample k from 0 to n
+        k = batch_randint(0, n)
         rank = sample_permutation(seq, self.vocab)
         keep = (rank < (k + 2).unsqueeze(1)) # keep <first>, <last> and k tokens
         canvas, rest, loc = get_ins_canvas(seq, keep, n, self.vocab)
-        # canvas has <first> + k tokens + <last>
+
+        # canvas has <first> + k tokens + <last>, so k + 1 slots
         mask = (new_arange(canvas) < (k + 1).unsqueeze(1))[:, :-1] # mask for logits_loc
         loss_loc, loss_word = self.get_loss(seq, canvas, rest, loc, mask)
         nll_lb = (loss_loc + loss_word) * (n + 1).float() - (n + 1).float().lgamma()

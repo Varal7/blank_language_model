@@ -8,7 +8,7 @@ import math
 from tqdm import tqdm
 
 from transformer.Models import Encoder
-from utils import get_known_length_canvas, sample_permutation, seq_cross_entropy, set_seed, to_tensor, collect
+from utils import get_known_length_canvas, sample_permutation, seq_cross_entropy, set_seed, to_tensor, collect, batch_randint
 
 
 class LBLM(pl.LightningModule):
@@ -240,7 +240,8 @@ class LBLM(pl.LightningModule):
     def losses(self, seq, n, n_real):
         m = (seq == self.vocab.missing).sum(1)
         #m = torch.max(m, n - 10)
-        k = m + (torch.rand_like(n.float()) * (n - m).float()).long() # sample k from m to n-1
+        #  k = m + (torch.rand_like(n.float()) * (n - m).float()).long() # sample k from m to n-1
+        k = batch_randint(m, n - 1)
         rank = sample_permutation(seq, self.vocab)
         keep = (rank < k.unsqueeze(1))
         canvas, blanks, rest, loc, lb = get_known_length_canvas(seq, keep, n, self.vocab)
