@@ -226,10 +226,19 @@ class BLM(pl.LightningModule):
 
     def losses(self, seq, n, n_real):
         """
-        seq is a tensor of tokens in batch with optionally an <eos> token:
-            tok tok ... tok [<eos>] <pad> <pad>
+        seq is a tensor of tokens in batch with optionally <eos> tokens
+
+        cat_sent = False, add_eos = False:
+            tok tok ... tok <pad> <pad> <pad>
+
+        cat_sent = False, add_eos = True:
+            tok tok ... tok <eos> <pad> <pad>
+
+        cat_sent = True, add_eos = True:
+            tok tok ... <eos> tok tok <eos> tok
+
         n is the number of BPE tokens
-        n_real is the number of real words
+        n_real is the number of real words, including <eos> as it is customary when reporting PPL
         """
         k = (torch.rand_like(n.float()) * n.float()).long() # sample k from 0 to n-1
         rank = sample_permutation(seq, self.vocab)
