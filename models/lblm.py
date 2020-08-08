@@ -239,8 +239,8 @@ class LBLM(pl.LightningModule):
 
     def losses(self, seq, n, n_real):
         m = (seq == self.vocab.missing).sum(1)
-        #m = torch.max(m, n - 10)
-        #  k = m + (torch.rand_like(n.float()) * (n - m).float()).long() # sample k from m to n-1
+        # m = torch.max(m, n - 10)
+        # k = m + (torch.rand_like(n.float()) * (n - m).float()).long() # sample k from m to n-1
         k = batch_randint(m, n - 1)
         rank = sample_permutation(seq, self.vocab)
         keep = (rank < k.unsqueeze(1))

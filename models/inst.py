@@ -221,16 +221,17 @@ class InsTLM(pl.LightningModule):
         n is the number of BPE tokens
         n_real is the number of real words
         """
+        m = (seq == self.vocab.missing).sum(1)
         #  k = (torch.rand_like(n.float()) * (n + 1).float()).long() # sample k from 0 to n
-        k = batch_randint(0, n)
+        k = batch_randint(m, n)
         rank = sample_permutation(seq, self.vocab)
-        keep = (rank < (k + 2).unsqueeze(1)) # keep <first>, <last> and k tokens
+        keep = (rank < (k + 2).unsqueeze(1)) # keep <first>, <last> and k tokens with k >= m
         canvas, rest, loc = get_ins_canvas(seq, keep, n, self.vocab)
 
         # canvas has <first> + k tokens + <last>, so k + 1 slots
         mask = (new_arange(canvas) < (k + 1).unsqueeze(1))[:, :-1] # mask for logits_loc
         loss_loc, loss_word = self.get_loss(seq, canvas, rest, loc, mask)
-        nll_lb = (loss_loc + loss_word) * (n + 1).float() - (n + 1).float().lgamma()
+        nll_lb = (loss_loc + loss_word) * (n - m + 1).float() - (n - m + 1).float().lgamma()
         return {'loss' : nll_lb.sum() / n_real.sum(),
                 'loc'  : loss_loc.mean(),
                 'word' : loss_word.mean(),
