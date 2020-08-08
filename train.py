@@ -17,6 +17,17 @@ from vocab import Vocab
 from dataset import load_data, get_train_dataloader, get_eval_dataloader
 from utils import set_seed
 
+def get_model_class(model_type):
+    if model_type == 'blm':
+        return BLM
+    elif model_type == 'inst':
+        return InsTLM
+    elif model_type == 'lblm':
+        return LBLM
+    else:
+        raise ValueError("Unknown model " + model_type)
+
+
 def main(args):
     torch.multiprocessing.set_sharing_strategy("file_system")
     neptune_token = os.getenv('NEPTUNE_API_TOKEN')
@@ -90,7 +101,7 @@ def main(args):
     train_dl = get_train_dataloader(train_sents, vocab, args.max_tok, data_workers=args.data_workers if not args.multigpu else 0)
     val_dl = get_eval_dataloader(valid_sents, vocab, args.eval_max_tok, data_workers=args.data_workers if not args.multigpu else 0)
 
-    model = InsTLM(vocab, args)
+    model = get_model_class(args.model_type)(vocab, args)
 
     if args.load_checkpoint:
         ckpt = torch.load(args.load_checkpoint)
@@ -148,15 +159,8 @@ if __name__ == '__main__':
 
     temp_args, _ = parser.parse_known_args()
 
-    # let the model add what it wants
-    if temp_args.model_type == 'blm':
-        parser = BLM.add_model_specific_args(parser)
-    elif temp_args.model_type == 'inst':
-        parser = InsTLM.add_model_specific_args(parser)
-    elif temp_args.model_type == 'lblm':
-        parser = LBLM.add_model_specific_args(parser)
-    else:
-        raise ValueError
+    # let the model add the options it needs
+    parser = get_model_class(args.model_type).add_model_specific_args(parser)
 
     parser = pl.Trainer.add_argparse_args(parser)
 

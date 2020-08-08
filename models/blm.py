@@ -27,7 +27,6 @@ class BLM(pl.LightningModule):
             n_layers=hparams.n_layers, n_head=hparams.n_head, d_k=hparams.d_k, d_v=hparams.d_v,
             dropout=hparams.dropout)
 
-
         self.word = nn.Linear(hparams.d_model, vocab.size, bias=False)
         nn.init.xavier_normal_(self.word.weight)
         self.x_logit_scale = 1.
@@ -41,6 +40,7 @@ class BLM(pl.LightningModule):
             nn.ReLU(),
             nn.Linear(hparams.d_model * 2, 4)
         )
+
 
     @staticmethod
     def add_model_specific_args(parent_parser):
@@ -217,6 +217,7 @@ class BLM(pl.LightningModule):
         loss_word = loss_word.sum(1) / count.float()
         output_word = torch.cat((output_loc, self.G.src_word_emb(target)), -1)
 
+
         logits_lrb = self.lrb(output_word)
         loss_lrb = seq_cross_entropy(logits_lrb, lb * 2 + rb, -3)
         loss_lrb = loss_lrb.sum(1) / count.float()
@@ -224,6 +225,12 @@ class BLM(pl.LightningModule):
         return loss_loc, loss_word, loss_lrb
 
     def losses(self, seq, n, n_real):
+        """
+        seq is a tensor of tokens in batch with optionally an <eos> token:
+            tok tok ... tok [<eos>] <pad> <pad>
+        n is the number of BPE tokens
+        n_real is the number of real words
+        """
         k = (torch.rand_like(n.float()) * n.float()).long() # sample k from 0 to n-1
         rank = sample_permutation(seq, self.vocab)
         keep = (rank < k.unsqueeze(1))

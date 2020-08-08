@@ -33,8 +33,11 @@ class LBLM(pl.LightningModule):
             self.x_logit_scale = (hparams.d_model ** -0.5)
 
         self.loc = nn.Linear(hparams.d_model, 1)
-        self.lrb = nn.Sequential(nn.Linear(hparams.d_model*2, hparams.d_model*2),
-            nn.ReLU(), nn.Linear(hparams.d_model*2, hparams.max_len))
+        self.lrb = nn.Sequential(
+            nn.Linear(hparams.d_model * 2, hparams.d_model * 2),
+            nn.ReLU(),
+            nn.Linear(hparams.d_model * 2, hparams.max_len)
+        )
 
 
     @staticmethod
@@ -140,6 +143,8 @@ class LBLM(pl.LightningModule):
         seq, n, n_real = map(lambda x: x.squeeze(0), batch)
         if seq.size(1) == 0:
             raise ValueError
+        # This is not actually compute n_mc, but uses the args.n_mc argument to compute
+        # an average of the loss across multiple k / sigma
         nlls = []
         print("n_mc: {}:".format(self.hparams.n_mc))
         for _ in range(max(1, self.hparams.n_mc)):
