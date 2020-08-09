@@ -237,8 +237,6 @@ class LBLM(pl.LightningModule):
         loss_lrb = seq_cross_entropy(logits_lrb, lb, -1)
         loss_lrb = loss_lrb.sum(1) / count.float()
 
-        import  pdb; pdb.set_trace()
-
         return loss_loc, loss_word, loss_lrb
 
     def losses(self, seq, n, n_real):
