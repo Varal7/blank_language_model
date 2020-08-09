@@ -59,9 +59,11 @@ class LBLM(pl.LightningModule):
 
         parser.add_argument('--share_emb_prj_weight', action='store_true',
                             help='share word embedding and projection weights')
-        # BLM
+        # LBLM
         parser.add_argument('--lrb_only', action='store_true',
                         help='LRB only')
+        parser.add_argument('--max_blank_length', default=2000,
+                        help='Max lengths of blanks')
 
         # Optim
         parser.add_argument('--adam_betas', default='(0.9, 0.999)', metavar='(R, R)',
@@ -227,8 +229,8 @@ class LBLM(pl.LightningModule):
         length = collect(canvas, blanks) - blank_0
         length_loc = collect(length, loc, -1)
         bs, seq_len = length_loc.shape
-        ta = length_loc.unsqueeze(-1).repeat(1, 1, self.args.max_len)
-        ra = torch.arange(self.args.max_len).unsqueeze(0).unsqueeze(0).repeat(bs, seq_len, 1).to(ta.device)
+        ta = length_loc.unsqueeze(-1).repeat(1, 1, self.hparams.max_len)
+        ra = torch.arange(self.hparams.max_len).unsqueeze(0).unsqueeze(0).repeat(bs, seq_len, 1).to(ta.device)
         mask = (ra >= ta)
         logits_lrb.masked_fill_(mask, float('-inf'))
 

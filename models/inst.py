@@ -224,11 +224,13 @@ class InsTLM(pl.LightningModule):
         m = (seq == self.vocab.missing).sum(1)
         #  k = (torch.rand_like(n.float()) * (n + 1).float()).long() # sample k from 0 to n
         k = batch_randint(m, n)
+        import pdb; pdb.set_trace()
+
         rank = sample_permutation(seq, self.vocab)
         keep = (rank < (k + 2).unsqueeze(1)) # keep <first>, <last> and k tokens with k >= m
         canvas, rest, loc = get_ins_canvas(seq, keep, n, self.vocab)
 
-        import pdb; pdb.set_trace()
+
 
         # canvas has <first> + k tokens + <last>, so k + 1 slots
         mask = (new_arange(canvas) < (k + 1).unsqueeze(1))[:, :-1] # mask for logits_loc

@@ -95,11 +95,14 @@ def main(args):
 
     vocab_file = os.path.join(save_dir, 'vocab.txt')
     if not os.path.isfile(vocab_file):
-        Vocab.build(train_sents, vocab_file, args.vocab_size)
+        if args.model_type == 'lblm':
+            Vocab.build(train_sents, vocab_file, args.vocab_size, args.max_blank_length)
+        else:
+            Vocab.build(train_sents, vocab_file, args.vocab_size)
     vocab = Vocab(vocab_file)
 
-    train_dl = get_train_dataloader(train_sents, vocab, args.max_tok, data_workers=args.data_workers if not args.multigpu else 0)
-    val_dl = get_eval_dataloader(valid_sents, vocab, args.eval_max_tok, data_workers=args.data_workers if not args.multigpu else 0)
+    train_dl = get_train_dataloader(train_sents, vocab, args.max_tok, data_workers=args.data_workers if not args.multigpu else 0, model_type=args.model_type)
+    val_dl = get_eval_dataloader(valid_sents, vocab, args.eval_max_tok, data_workers=args.data_workers if not args.multigpu else 0, model_type=args.model_type)
 
     model = get_model_class(args.model_type)(vocab, args)
 

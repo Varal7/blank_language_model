@@ -1,6 +1,7 @@
 # blank_language_model
 
-``
+```
+
 python train.py \
   --project_name varal7/blm \
   --train /data/rsg/nlp/quach/blank_project/blank_language_model/data/phi-ml/train.txt \
@@ -22,16 +23,17 @@ python train.py \
   --lr_schedule fixed \
   --train_steps 6000000 \
   --root_dir /data/scratch/quach/phi-ml/inst/debug
+
 ```
 
 --root_dir /data/scratch/quach/phi-ml/inst/blank_steps600000_cat1024_share_known_len_wd1e-5_drop0.3_lr1e-4/
 
 ```
 
-python train.py \
+CUDA_VISIBLE_DEVICES=0 python train.py \
   --project_name varal7/blm \
-  --train /data/rsg/nlp/tianxiao/blank_language_model/data/wikitext-103/train.bpe \
-  --valid /data/rsg/nlp/tianxiao/blank_language_model/data/wikitext-103/valid.bpe \
+  --train /data/rsg/nlp/tianxiao/blank_language_model/data/wikitext-103/train.txt.small \
+  --valid /data/rsg/nlp/tianxiao/blank_language_model/data/wikitext-103/valid.txt.small \
   --name insT-debug \
   --model_type inst \
   --add_eos \
@@ -48,10 +50,61 @@ python train.py \
   --warmup_steps 30000 \
   --train_steps 2000000 \
   --fp16 --fp16_opt_level O2 \
-  --root_dir /data/scratch/quach/serialize/blank_project/debug
+  --root_dir /data/scratch/quach/serialize/blank_project/debug-inst
 
 ```
 
+```
+
+CUDA_VISIBLE_DEVICES=1 python train.py \
+  --project_name varal7/blm \
+  --train /data/rsg/nlp/tianxiao/blank_language_model/data/wikitext-103/train.bpe \
+  --valid /data/rsg/nlp/tianxiao/blank_language_model/data/wikitext-103/valid.bpe \
+  --name blm-debug \
+  --model_type blm \
+  --add_eos \
+  --cat_sent \
+  --max_len 256 \
+  --max_tok 16384 \
+  --checkpoint_every 0 \
+  --lr 1e-4 \
+  --weight_decay 1e-5 \
+  --share_emb_prj_weight \
+  --accum_grad 8 \
+  --dropout 0.3 \
+  --lr_schedule fixed \
+  --warmup_steps 30000 \
+  --train_steps 2000000 \
+  --fp16 --fp16_opt_level O2 \
+  --root_dir /data/scratch/quach/serialize/blank_project/debug-blm
+
+```
+
+
+```
+
+CUDA_VISIBLE_DEVICES=2 python train.py \
+  --project_name varal7/blm \
+  --train /data/rsg/nlp/tianxiao/blank_language_model/data/wikitext-103/train.bpe \
+  --valid /data/rsg/nlp/tianxiao/blank_language_model/data/wikitext-103/valid.bpe \
+  --name lblm-debug \
+  --model_type lblm \
+  --add_eos \
+  --cat_sent \
+  --max_len 256 \
+  --max_tok 16384 \
+  --checkpoint_every 0 \
+  --lr 1e-4 \
+  --weight_decay 1e-5 \
+  --share_emb_prj_weight \
+  --accum_grad 8 \
+  --dropout 0.3 \
+  --lr_schedule fixed \
+  --warmup_steps 30000 \
+  --train_steps 2000000 \
+  --fp16 --fp16_opt_level O2 \
+  --root_dir /data/scratch/quach/serialize/blank_project/debug-lblm
+```
 
 ```
 CUDA_VISIBLE_DEVICES=3 python train.py \

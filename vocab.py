@@ -19,10 +19,13 @@ class Vocab(object):
         self.missing = self.word2idx['<missing>']
         self.eos = self.word2idx['<eos>']
         self.blank = self.word2idx['<blank>']
+        self.blanks = [idx for idx in range(self.size) if self.idx2word[idx][:6] == "<blank"]
 
     @staticmethod
-    def build(sents, path, size):
+    def build(sents, path, size, max_blank_length=None):
         voc = ['<pad>', '<unk>', '<first>', '<last>', '<eos>', '<blank>', '<missing>']
+        if max_blank_length is not None:
+            voc += ['<blank_{}>'.format(i) for i in range(0, max_blank_length)]
         occ = [0 for _ in voc]
 
         cnt = Counter([w for s in sents for w in s])
@@ -41,4 +44,10 @@ class Vocab(object):
                 f.write('{}\t{}\n'.format(v, o))
 
     def is_blank(self, candidate):
-        return candidate == self.blank
+        return candidate == self.blank | self.is_l_lblank(candidate)
+
+    def is_l_lblank(self, candidate):
+        return len(self.blanks) > 0 & (self.blanks[0] <= candidate) & (candidate <= self.blanks[-1])
+
+    def get_blank_length(self, idx):
+        return idx - self.blanks[0]
