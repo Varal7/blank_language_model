@@ -19,7 +19,7 @@ class Vocab(object):
         self.missing = self.word2idx['<missing>']
         self.eos = self.word2idx['<eos>']
         self.blank = self.word2idx['<blank>']
-        self.blanks = [idx for idx in range(self.size) if self.idx2word[idx][:6] == "<blank"]
+        self.blanks = [idx for idx in range(self.size) if self.idx2word[idx][:7] == "<blank_"]
 
     @staticmethod
     def build(sents, path, size, max_blank_length=None):

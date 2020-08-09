@@ -79,7 +79,7 @@ def get_known_length_canvas(seq, keep, n, vocab):
         - lb: size of the blank on the left that has to be opened
     """
 
-    res = get_canvas_cpp.get_known_length_canvas(seq.tolist(), keep.tolist(), n.tolist(), vocab.blank)
+    res = get_canvas_cpp.get_known_length_canvas(seq.tolist(), keep.tolist(), n.tolist(), vocab.blanks[0])
     pad = [vocab.pad, -1, -1, -1, -1, -1]
     for i in range(len(res)):
         res[i] = to_tensor(res[i], pad[i], seq.device)
