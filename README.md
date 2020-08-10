@@ -286,7 +286,19 @@ CUDA_VISIBLE_DEVICES=2 python fill.py \
 ```
 
 CUDA_VISIBLE_DEVICES=0 python fill.py \
---data /data/rsg/nlp/quach/blank_project/blank_language_model/data/phi-ml/valid.x \
---output infill/valid.x.infill \
+--data /data/rsg/nlp/quach/blank_project/blank_language_model/data/phi-ml/valid.blank_x \
+--constrained_length_single_blank \
+--output valid.x.infull \
 --checkpoint /data/scratch/quach/serialize/phi-ml/inst/6000000/ancient-insT/version_BLM-182/
 
+CUDA_VISIBLE_DEVICES=1 python fill.py \
+--data /data/rsg/nlp/quach/blank_project/blank_language_model/data/phi-ml/test.blank_x \
+--constrained_length_single_blank \
+--output test.x.infull \
+--checkpoint /data/scratch/quach/serialize/phi-ml/inst/6000000/ancient-insT/version_BLM-182/
+
+python auxiliary/extract_infill.py --blank /data/rsg/nlp/quach/blank_project/blank_language_model/data/phi-ml/valid.blank_x --full /data/scratch/quach/serialize/phi-ml/inst/6000000/ancient-insT/version_BLM-182/valid.x.infull > /data/scratch/quach/serialize/phi-ml/inst/6000000/ancient-insT/version_BLM-182/valid.x.infill
+
+python auxiliary/extract_infill.py --blank /data/rsg/nlp/quach/blank_project/blank_language_model/data/phi-ml/valid.blank_x_small --full /data/scratch/quach/serialize/phi-ml/inst/6000000/ancient-insT/version_BLM-182/valid.blank_x_small.infull > /data/scratch/quach/serialize/phi-ml/inst/6000000/ancient-insT/version_BLM-182/valid.blank_x_small.infill
+
+python auxiliary/error_rate.py --pred /data/scratch/quach/serialize/phi-ml/inst/6000000/ancient-insT/version_BLM-182/valid.blank_x_small.infill --gold /data/rsg/nlp/quach/blank_project/blank_language_model/data/phi-ml/valid.y
