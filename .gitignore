@@ -96,6 +96,9 @@ venv.bak/
 .spyderproject
 .spyproject
 
+# vim
+.vim
+
 # Rope project settings
 .ropeproject
 
@@ -104,3 +107,6 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+
+#  ddp
+__temp_weight_ddp_end.ckpt

@@ -1,20 +1,20 @@
 import argparse
 import os
 import torch
+import pytorch_lightning as pl
 import numpy as np
 from tqdm import tqdm
 
 from vocab import Vocab
-from model import LM
-from utils import *
+from models import InsTLM
+from utils import set_seed, get_last_model_path, Bunch
+from dataset import load_sent
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--data', metavar='FILE', required=True,
                     help='path to data file')
 parser.add_argument('--checkpoint', metavar='DIR', required=True,
                     help='checkpoint directory')
-parser.add_argument('--model', default='model_best.pt', metavar='FILE',
-                    help='model file (in checkpoint directory)')
 parser.add_argument('--vocab', default='vocab.txt', metavar='FILE',
                     help='vocab file (in checkpoint directory)')
 parser.add_argument('--output', default='output.txt', metavar='FILE',
@@ -28,12 +28,17 @@ parser.add_argument('--anywhere', action='store_true',
 parser.add_argument('--write_mid', action='store_true',
                     help='write intermediate partial sentences')
 
-parser.add_argument('--force_legal', action='store_true',
-                    help='If there are still slots, prevent stopping')
+#  parser.add_argument('--prevent_stopping_with_unfilled_spots', action='store_true',
+#                      help='If there are still unfilled mandatory blanks, prevent stopping')
 
-parser.add_argument('--force_insert', action='store_true',
-                    help='If there are still slots and eos is chosen, pick first empty slot')
+#  parser.add_argument('--pick_mandatory_first', action='store_true',
+#                      help='If there are still undefilled mandatory blanks, start with those')
 
+parser.add_argument('--append_blank_at_the_end', action='store_true',
+                    help='Adds a blank at the end to allow the insT to end termination')
+
+parser.add_argument('--constrained_length_single_blank', action='store_true',
+                    help='In single blank setting, forces InsT to generate correct number of tokens')
 
 parser.add_argument('--batch_size', type=int, default=64, metavar='N',
                     help='batch size')
@@ -42,14 +47,23 @@ parser.add_argument('--seed', type=int, default=1111, metavar='N',
 parser.add_argument('--no_cuda', action='store_true',
                     help='disable CUDA')
 
-def get_model(path, vocab, device):
+def get_args_model(path, vocab, args_override, device):
     print('Load model from {}'.format(path))
     ckpt = torch.load(path)
-    train_args = ckpt['args']
-    model = LM(vocab, train_args).to(device)
-    model.load_state_dict(ckpt['model'])
+
+    # Handle models trained with old versions of lightning...
+    if 'hyper_parameters' in ckpt:
+        args = ckpt['hyper_parameters']
+        args.update(args_override)
+        model = InsTLM(vocab, args).to(device)
+    else:
+        args = (ckpt['hparams'])
+        args.update(args_override)
+        model = InsTLM(vocab, Bunch(args)).to(device)
+
+    model.load_state_dict(ckpt['state_dict'])
     model.eval()
-    return model
+    return args, model
 
 
 def select(logits, decode):
@@ -59,7 +73,6 @@ def select(logits, decode):
         return logits.argmax()
 
 def write(file, sents, write_mid):
-    sents = strip_eos(sents)
     if write_mid:
         for s in sents:
             file.write(' '.join(s) + '\n')
@@ -69,20 +82,19 @@ def write(file, sents, write_mid):
     file.flush()
 
 
-def fill(seq, blanks, decode):
+def fill(seq, blanks, mandatory_blanks, decode, count=-1):
     seq = torch.LongTensor([vocab.first] + seq + [vocab.last]).to(device)
     sent_mid = [[vocab.idx2word[id] for id in seq[1:-1]]]
-    mandatory_blanks = np.array([t for t in blanks])
     if len(blanks) > 0:
-        while len(seq) < model.args.max_len:
-            output = model(seq.unsqueeze(0))
+        while len(seq) < model.hparams.max_len:
+            output = model.forward_encoder(seq.unsqueeze(0))
             features = model.pool_out(
                 torch.cat((output[:, :-1, :], output[:, 1:, :]), dim=-1)
             )[0]
 
             logits_loc = model.loc(features).squeeze(-1)
 
-            # TODO mask
+            # If not all mandatory blanks are completed, start with those
             if not (mandatory_blanks == None).all():
                 logits_loc[np.array(blanks)[mandatory_blanks == None]] = float('-inf')
 
@@ -92,13 +104,17 @@ def fill(seq, blanks, decode):
             output_loc = features[l]
             logits_word = model.word(output_loc) * model.x_logit_scale
 
-            # Can't finish sentence if not done
+            # Can't finish sentence if not all mandatory blanks are completed
             if not all(e is None for e in mandatory_blanks):
-                logits_word[vocab.eos] = float('-inf')
+                logits_word[vocab.last] = float('-inf')
+
+            # Can't finish sentence if blank not fully completed
+            if count > 0:
+                logits_word[vocab.last] = float('-inf')
 
             word = select(logits_word, decode)
 
-            if word.item() == vocab.eos:
+            if word.item() == vocab.last:
                 break
 
             blanks = blanks[:p+1] + [x+1 for x in blanks[p:]]
@@ -110,31 +126,60 @@ def fill(seq, blanks, decode):
             ))
             seq = torch.cat((seq[:l+1], word.unsqueeze(0), seq[l+1:]))
             sent_mid.append([vocab.idx2word[id] for id in seq[1:-1]])
+
+            if count > 0:
+                count -= 1
+                if count == 0:
+                    break
+
     return sent_mid
 
 if __name__ == '__main__':
     args = parser.parse_args()
-    set_seed(args.seed)
-    vocab = Vocab(os.path.join(args.checkpoint, args.vocab))
     cuda = not args.no_cuda and torch.cuda.is_available()
     device = torch.device("cuda" if cuda else "cpu")
-    model = get_model(os.path.join(args.checkpoint, args.model), vocab, device)
+    args.gpus = 1 if cuda else 0
+
+    set_seed(args.seed)
+    vocab = Vocab(os.path.join(args.checkpoint, args.vocab))
+
+    epoch, path = get_last_model_path(args.checkpoint)
+    args_override = args.__dict__
+    model_args, model = get_args_model(path, vocab, args_override=args_override, device=device)
+    model_args['epoch'] = epoch
     out_path = os.path.join(args.checkpoint, args.output)
 
-    sents = load_sent(args.data)
+    sents = load_sent(args.data, model.hparams.add_eos)
     output = []
     with open(out_path, 'w') as file:
         for s in tqdm(sents):
             seq, blanks = [], []
+            count = -1
             for w in s:
-                id = vocab.word2idx[w] if w in vocab.word2idx else vocab.unk
-                if id == vocab.blank:
+                # <blank_x> is not in insT vocab but can be used at inference time
+                if w.startswith("<blank"):
                     blanks.append(len(seq))
+                    if args.constrained_length_single_blank:
+                        count = int(w.split("_")[1][:-1])
                 else:
+                    id = vocab.word2idx[w] if w in vocab.word2idx else vocab.unk
                     seq.append(id)
-            if len(seq) not in blanks:
-                blanks.append(len(seq)) # Always a blank at the end
+
             if args.anywhere:
                 blanks = list(range(len(seq)+1))
-            sent_mid = fill(seq, blanks, args.decode)
+
+            if args.constrained_length_single_blank and len(blanks) != 1:
+                raise ValueError("Contrained length only works for a single blank setting")
+
+            if args.constrained_length_single_blank and args.append_blank_at_the_end:
+                raise ValueError("Constrainted length is not compatible with appending blank at the end")
+
+            mandatory_blanks = np.array(blanks)
+
+            if args.append_blank_at_the_end:
+                if len(seq) not in blanks:
+                    blanks.append(len(seq)) # Always a blank at the end for termination
+                    mandatory_blanks = np.append(mandatory_blanks, None)
+
+            sent_mid = fill(seq, blanks, mandatory_blanks, args.decode, count)
             write(file, sent_mid, args.write_mid)

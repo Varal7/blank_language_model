@@ -47,7 +47,9 @@ class Vocab(object):
         return candidate == self.blank | self.is_l_lblank(candidate)
 
     def is_l_lblank(self, candidate):
-        return len(self.blanks) > 0 & (self.blanks[0] <= candidate) & (candidate <= self.blanks[-1])
+        if not len(self.blanks):
+            return False
+        return (self.blanks[0] <= candidate) & (candidate <= self.blanks[-1])
 
     def get_blank_length(self, idx):
         return idx - self.blanks[0]

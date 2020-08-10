@@ -151,4 +151,3 @@ def get_last_model_path(dir):
     last, epoch = sorted([(filename, parse_epoch(filename)) for filename in  os.listdir(dir)], key=lambda x: -x[1])[0]
     path = os.path.join(dir, last)
     return epoch, path
-

@@ -284,3 +284,9 @@ CUDA_VISIBLE_DEVICES=2 python fill.py \
 --output infill/test.maskratio0.3.fill \
 --checkpoint /data/rsg/nlp/tianxiao/blank_language_model/checkpoints/yahoo/insertion_share_wd1e-6_drop0.3_lr1e-4_train500k/
 ```
+
+CUDA_VISIBLE_DEVICES=0 python fill.py \
+--data /data/rsg/nlp/quach/blank_project/blank_language_model/data/phi-ml/valid.x \
+--output infill/valid.x.infill \
+--checkpoint /data/scratch/quach/serialize/phi-ml/inst/6000000/ancient-insT/version_BLM-182/
+
