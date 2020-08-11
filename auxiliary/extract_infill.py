@@ -26,7 +26,7 @@ for line_blank, line_full in zip(blank, full):
     while i_blank < len(words_blank):
         word_blank = words_blank[i_blank]
         if not word_blank.startswith("<blank"):
-            assert_pdb( words_full[i_full] == word_blank)
+            assert_pdb( words_full[i_full] == word_blank or words_full[i_full] == "<unk>")
 
             i_full += 1
             i_blank += 1

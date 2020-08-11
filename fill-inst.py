@@ -1,7 +1,6 @@
 import argparse
 import os
 import torch
-import pytorch_lightning as pl
 import numpy as np
 from tqdm import tqdm
 

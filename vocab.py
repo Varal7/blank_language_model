@@ -44,7 +44,7 @@ class Vocab(object):
                 f.write('{}\t{}\n'.format(v, o))
 
     def is_blank(self, candidate):
-        return candidate == self.blank | self.is_l_lblank(candidate)
+        return (candidate == self.blank) | self.is_l_lblank(candidate)
 
     def is_l_lblank(self, candidate):
         if not len(self.blanks):
