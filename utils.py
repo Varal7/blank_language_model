@@ -10,12 +10,6 @@ from torch.utils.cpp_extension import load
 
 get_canvas_cpp = load(name="canvas", sources=["get_canvas.cpp"])
 
-def set_seed(seed):     # set the random seed for reproducibility
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-
 def strip_eos(sents):
     return [sent[:sent.index('<eos>')] if '<eos>' in sent else sent
         for sent in sents]
