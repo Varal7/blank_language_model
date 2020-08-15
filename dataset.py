@@ -24,7 +24,7 @@ def get_batches(data, vocab, max_tokens, same_len=False, use_first_and_last=Fals
     while i < len(data):
         j = i
         first_and_last_offset = 2 if use_first_and_last else 0
-        while j < len(data) and (len(data[j]) + first_and_last_offset) * (j-i+1) <= max_tokens and \
+        while j < len(data) and (len(data[i]) + first_and_last_offset) * (j-i+1) <= max_tokens and \
             (not same_len or len(data[j]) == len(data[i])):
             j += 1
         batches.append(get_batch(data[i: j], vocab, use_first_and_last))
