@@ -53,3 +53,6 @@ class Vocab(object):
 
     def get_blank_length(self, idx):
         return idx - self.blanks[0]
+
+    def word_to_idx(self, word):
+        return self.word2idx[word] if word in self.word2idx else self.unk
