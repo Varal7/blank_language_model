@@ -5,7 +5,6 @@ import torch.nn.functional as F
 import pytorch_lightning as pl
 import argparse
 import math
-from tqdm import tqdm
 
 from transformer.Models import Encoder
 from utils import get_ins_canvas, sample_permutation, seq_cross_entropy, set_seed, to_tensor, collect, new_arange, batch_randint

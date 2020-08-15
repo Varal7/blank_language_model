@@ -5,7 +5,6 @@ import torch.nn.functional as F
 import pytorch_lightning as pl
 import argparse
 import math
-from tqdm import tqdm
 
 from transformer.Models import Encoder
 from utils import get_canvas, sample_permutation, seq_cross_entropy, set_seed, to_tensor, collect, batch_randint
@@ -147,7 +146,7 @@ class BLM(pl.LightningModule):
             raise ValueError
         losses = self("losses", seq, n, n_real)
         if self.hparams.n_mc > 0:
-            print("n_mc: {}:".format(self.hparams.n_mc))
+            # print("n_mc: {}:".format(self.hparams.n_mc))
             nll = self("nll_mc", seq, n, self.hparams.n_mc).sum()
         else:
             nll = (losses['loss'] * n_real.sum())
@@ -262,7 +261,7 @@ class BLM(pl.LightningModule):
         Note: sentences in the batch must have the same length
         """
         a = []
-        for _ in tqdm(range(m)):
+        for _ in range(m):
             rank = sample_permutation(seq, self.vocab)
             logp = 0.
             for k in (range(seq.size(1))):
