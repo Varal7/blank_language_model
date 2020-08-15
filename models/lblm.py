@@ -7,7 +7,7 @@ import argparse
 import math
 
 from transformer.Models import Encoder
-from utils import get_known_length_canvas, sample_permutation, seq_cross_entropy, set_seed, to_tensor, collect, batch_randint
+from utils import get_known_length_canvas, sample_permutation, seq_cross_entropy, to_tensor, collect, batch_randint
 
 
 class LBLM(pl.LightningModule):

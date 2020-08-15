@@ -7,7 +7,7 @@ import argparse
 import math
 
 from transformer.Models import Encoder
-from utils import get_ins_canvas, sample_permutation, seq_cross_entropy, set_seed, to_tensor, collect, new_arange, batch_randint
+from utils import get_ins_canvas, sample_permutation, seq_cross_entropy, to_tensor, collect, new_arange, batch_randint
 
 
 class InsTLM(pl.LightningModule):
