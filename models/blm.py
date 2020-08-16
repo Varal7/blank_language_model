@@ -3,11 +3,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import pytorch_lightning as pl
-import argparse
-import math
 
 from transformer.Models import Encoder
-from utils import get_canvas, sample_permutation, seq_cross_entropy, to_tensor, collect, batch_randint
+from utils import get_canvas, sample_permutation, \
+                  seq_cross_entropy, collect, batch_randint
 
 
 class BLM(pl.LightningModule):
@@ -17,13 +16,12 @@ class BLM(pl.LightningModule):
         super().__init__()
         self.vocab = vocab
         self.hparams = hparams
-        self.pad_idx = vocab.pad
-        self.d_model = hparams.d_model
 
         self.G = Encoder(
             n_src_vocab=vocab.size, len_max_seq=hparams.max_len,
-            d_word_vec=hparams.d_model, d_model=hparams.d_model, d_inner=hparams.d_inner_hid,
-            n_layers=hparams.n_layers, n_head=hparams.n_head, d_k=hparams.d_k, d_v=hparams.d_v,
+            d_word_vec=hparams.d_model, d_model=hparams.d_model,
+            d_inner=hparams.d_inner_hid, d_k=hparams.d_k, d_v=hparams.d_v,
+            n_layers=hparams.n_layers, n_head=hparams.n_head,
             dropout=hparams.dropout)
 
         self.word = nn.Linear(hparams.d_model, vocab.size, bias=False)
@@ -39,76 +37,6 @@ class BLM(pl.LightningModule):
             nn.ReLU(),
             nn.Linear(hparams.d_model * 2, 4)
         )
-
-
-    @staticmethod
-    def add_model_specific_args(parent_parser):
-        parser = argparse.ArgumentParser(parents=[parent_parser], add_help=False)
-        # Model args
-        parser.add_argument('--d_model', type=int, default=512, metavar='N',
-                            help='transformer dimension d_model')
-        parser.add_argument('--d_inner_hid', type=int, default=2048, metavar='N',
-                            help='transformer dimension d_inner_hid')
-        parser.add_argument('--d_k', type=int, default=64, metavar='N',
-                            help='transformer dimension d_k')
-        parser.add_argument('--d_v', type=int, default=64, metavar='N',
-                            help='transformer dimension d_v')
-        parser.add_argument('--n_head', type=int, default=8, metavar='N',
-                            help='number of attention heads')
-        parser.add_argument('--n_layers', type=int, default=6, metavar='N',
-                            help='number of layers')
-
-        parser.add_argument('--share_emb_prj_weight', action='store_true',
-                            help='share word embedding and projection weights')
-        # BLM
-        parser.add_argument('--lrb_only', action='store_true',
-                        help='LRB only')
-
-        # Optim
-        parser.add_argument('--adam_betas', default='(0.9, 0.999)', metavar='(R, R)',
-                            help='adam betas')
-        parser.add_argument('--adam_eps', type=float, default=1e-8, metavar='R',
-                            help='adam eps')
-        parser.add_argument('--weight_decay', type=float, default=1e-5, metavar='R',
-                            help='weight decay')
-        parser.add_argument('--dropout', type=float, default=0.3, metavar='P',
-                            help='dropout probability (0 = no dropout)')
-
-
-        # Eval
-        parser.add_argument('--n_mc', type=int, default=1, metavar='N',
-                        help='num of samples for monte carlo estimate of ppl')
-
-
-        # Data
-        parser.add_argument('--max_tok', type=int, default=10000, metavar='N',
-                            help='max number of tokens per batch')
-        parser.add_argument('--eval_max_tok', type=int, default=40000, metavar='N',
-                            help='max number of tokens per batch for evaluation')
-        parser.add_argument('--vocab_size', type=int, default=10000, metavar='N',
-                            help='keep N most frequent words in vocabulary')
-        parser.add_argument('--max_len', type=int, default=512, metavar='N',
-                            help='max sequence length')
-        parser.add_argument('--cat_sent', action='store_true',
-                            help='concat sentences and then chunk into size of max_len')
-        parser.add_argument('--add_eos', action='store_true',
-                            help='add <eos> at the end of each sentence')
-
-        # LR schedule
-        parser.add_argument('--lr_schedule', default='fixed', metavar='S',
-                            choices=['fixed', 'triangular'],
-                            help='learning rate schedule')
-        parser.add_argument('--lr', type=float, default=0.0001, metavar='R',
-                            help='learning rate')
-        parser.add_argument('--warmup_steps', type=int, default=4000, metavar='N',
-                            help='number of warmup steps (inverse_sqrt)')
-        parser.add_argument('--train_steps', type=int, default=300000, metavar='N',
-                            help='number of training steps')
-
-        #  parser.add_argument('--lr_decay', type=float, default=4, metavar='R',
-                            #  help='learning rate decay factor (reduce_on_plateau)')
-
-        return parser
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(
