@@ -144,9 +144,9 @@ if __name__ == '__main__':
     parser.add_argument('--lr', type=float, default=0.0001,
                         help='learning rate')
     parser.add_argument('--warmup_steps', type=int, default=4000,
-                        help='number of warmup steps (inverse_sqrt)')
-    parser.add_argument('--train_steps', type=int, default=300000,
-                        help='number of training steps')
+                        help='number of warmup steps (triangular)')
+    parser.add_argument('--descend_steps', type=int, default=300000,
+                        help='number of descending steps (triangular)')
 
     # Validation
     parser.add_argument('--eval_max_tok', type=int, default=40000,

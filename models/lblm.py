@@ -5,6 +5,7 @@ import torch.nn.functional as F
 import pytorch_lightning as pl
 
 from transformer.Models import Encoder
+from optimizer import config_opt_schedule
 from utils import get_known_length_canvas, sample_permutation, \
                   seq_cross_entropy, collect, batch_randint
 
@@ -39,28 +40,7 @@ class LBLM(pl.LightningModule):
         )
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(
-            self.parameters(),
-            betas=eval(self.hparams.adam_betas),
-            eps=self.hparams.adam_eps,
-            weight_decay=self.hparams.weight_decay,
-            lr=self.hparams.lr
-        )
-
-        if self.hparams.lr_schedule == "fixed":
-            return optimizer
-
-        if self.hparams.lr_schedule == "triangular":
-            scheduler = torch.optim.lr_scheduler.CyclicLR(
-                optimizer,
-                base_lr=0,
-                max_lr=self.hparams.lr,
-                step_size_up=self.hparams.warmup_steps,
-                step_size_down=(self.hparams.train_steps - self.hparams.warmup_steps),
-                cycle_momentum=False,
-            )
-
-            return [optimizer], [{'scheduler': scheduler, 'interval': 'step'}]
+        return config_opt_schedule(self.parameters(), self.hparams)
 
     def training_step(self, batch, batch_idx):
         seq, n, n_real = map(lambda x: x.squeeze(0), batch)
