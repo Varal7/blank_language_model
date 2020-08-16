@@ -44,57 +44,48 @@ class LBLM(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         seq, n, n_real = map(lambda x: x.squeeze(0), batch)
-        losses = self("losses", seq, n, n_real)
-        losses['log'] = {**losses}
-        return losses
+        losses = self('losses', seq, n, n_real)
+        return {**losses, 'log': {**losses}}
 
-    def validation_step(self, batch, batch_idx):
+    def eval_step(self, batch, batch_idx):
         seq, n, n_real = map(lambda x: x.squeeze(0), batch)
-        if seq.size(1) == 0:
-            raise ValueError
-        # This is not actually compute n_mc, but uses the args.n_mc argument to compute
-        # an average of the loss across multiple k / sigma
+        # This is not actually compute n_mc, but uses the args.n_mc argument to
+        # compute an average of the loss across multiple k / sigma
         nlls = []
-        print("n_mc: {}:".format(self.hparams.n_mc))
         for _ in range(max(1, self.hparams.n_mc)):
-            losses = self("losses", seq, n, n_real)
-            nll = (losses['loss'] * n_real.sum())
+            losses = self('losses', seq, n, n_real)
+            nll = losses['loss'] * n_real.sum()
             nlls.append(nll)
         nll = torch.tensor(nlls).mean()
         n_words = n_real.sum()
-        # Todo use AverageMeters
-
         return {**losses, 'n_words': n_words, 'nll': nll}
 
-    def validation_epoch_end(self, outputs):
-        logs = {}
+    def eval_epoch_end(self, outputs):
+        # n_words and nll are batch/dataset sum, other losses are mean
+        losses = {}
         for key in outputs[0].keys():
-            if key not in ["n_words", "nll"]:
-                logs['val_' + key] = torch.stack([x[key] for x in outputs]).mean()
-        total_nll = torch.stack([x['nll'] for x in outputs]).sum()
+            if key not in ['n_words', 'nll']:
+                losses[key] = torch.stack([x[key] for x in outputs]).mean()
+        nll = torch.stack([x['nll'] for x in outputs]).sum()
         n_words = torch.stack([x['n_words'] for x in outputs]).sum()
-        ppl = torch.exp(total_nll / n_words)
-        logs['total_nll'] = total_nll
-        logs['n_words'] = n_words
-        logs['ppl'] = ppl
-        return {'val_loss': logs['val_loss'], 'log': logs}
+        ppl = torch.exp(nll / n_words)
+        return {**losses, 'nll': nll, 'n_words': n_words, 'ppl': ppl}
+
+    def validation_step(self, batch, batch_idx):
+        return self.eval_step(batch, batch_idx)
+
+    def validation_epoch_end(self, outputs):
+        logs = self.eval_epoch_end(outputs)
+        val_logs = {'val_'+k: v for k, v in logs.items()}
+        return {'val_loss': logs['loss'], 'log': val_logs}
 
     def test_step(self, batch, batch_idx):
-        return self.validation_step(batch, batch_idx)
+        return self.eval_step(batch, batch_idx)
 
     def test_epoch_end(self, outputs):
-        logs = {}
-        for key in outputs[0].keys():
-            if key not in ["n_words", "nll"]:
-                logs['test_' + key] = torch.stack([x[key] for x in outputs]).mean()
-        total_nll = torch.stack([x['nll'] for x in outputs]).sum()
-        n_words = torch.stack([x['n_words'] for x in outputs]).sum()
-        ppl = torch.exp(total_nll / n_words)
-        logs['total_nll'] = total_nll
-        logs['n_words'] = n_words
-        logs['ppl'] = ppl
-        self.logger.log_metrics(logs)
-        return {'test_loss': logs['test_loss'], 'log': logs}
+        logs = self.eval_epoch_end(outputs)
+        test_logs = {'test_'+k: v for k, v in logs.items()}
+        return {'test_loss': logs['loss'], 'log': test_logs}
 
     def forward_encoder(self, canvas):
         pos = (1 + torch.arange(canvas.size(1))).repeat(len(canvas), 1)
@@ -108,7 +99,6 @@ class LBLM(pl.LightningModule):
         elif action == "losses":
             return self.losses(*args)
         raise NotImplementedError
-
 
     def get_loss(self, seq, canvas, blanks, rest, loc, lb):
         count = (rest != -1).sum(1)
