@@ -6,8 +6,7 @@ import pytorch_lightning as pl
 
 from transformer.Models import Encoder
 from optimizer import config_opt_schedule
-from utils import get_canvas, sample_permutation, \
-                  seq_cross_entropy, collect, batch_randint
+from utils import get_canvas, sample_permutation, seq_cross_entropy, collect, batch_randint
 
 
 class BLM(pl.LightningModule):
@@ -73,7 +72,7 @@ class BLM(pl.LightningModule):
 
     def validation_epoch_end(self, outputs):
         logs = self.eval_epoch_end(outputs)
-        val_logs = {'val_'+k: v for k, v in logs.items()}
+        val_logs = {'val_' + k: v for k, v in logs.items()}
         return {'val_loss': logs['loss'], 'log': val_logs}
 
     def test_step(self, batch, batch_idx):
@@ -81,7 +80,7 @@ class BLM(pl.LightningModule):
 
     def test_epoch_end(self, outputs):
         logs = self.eval_epoch_end(outputs)
-        test_logs = {'test_'+k: v for k, v in logs.items()}
+        test_logs = {'test_' + k: v for k, v in logs.items()}
         return {'test_loss': logs['loss'], 'log': test_logs}
 
     def forward_encoder(self, canvas):
@@ -91,9 +90,9 @@ class BLM(pl.LightningModule):
         return output
 
     def forward(self, action, *args):
-        if action == "nll_mc":
+        if action == 'nll_mc':
             return self.nll_mc(*args)
-        elif action == "losses":
+        elif action == 'losses':
             return self.losses(*args)
         raise NotImplementedError
 
@@ -115,7 +114,6 @@ class BLM(pl.LightningModule):
         loss_word = loss_word.sum(1) / count.float()
         output_word = torch.cat((output_loc, self.G.src_word_emb(target)), -1)
 
-
         logits_lrb = self.lrb(output_word)
         loss_lrb = seq_cross_entropy(logits_lrb, lb * 2 + rb, -3)
         loss_lrb = loss_lrb.sum(1) / count.float()
@@ -124,32 +122,21 @@ class BLM(pl.LightningModule):
 
     def losses(self, seq, n, n_real):
         """
-        seq is a tensor of tokens in batch with optionally <eos> tokens
-
-        cat_sent = False, add_eos = False:
-            tok tok ... tok <pad> <pad> <pad>
-
-        cat_sent = False, add_eos = True:
-            tok tok ... tok <eos> <pad> <pad>
-
-        cat_sent = True, add_eos = True:
-            tok tok ... <eos> tok tok <eos> tok
-
-        n is the number of BPE tokens
-        n_real is the number of real words, including <eos> as it is customary when reporting PPL
+        Args:
+            n: number of BPE tokens
+            n_real: number of real words (for reporting PPL)
         """
-        #  k = (torch.rand_like(n.float()) * n.float()).long() # sample k from 0 to n-1
         k = batch_randint(0, n - 1)
         rank = sample_permutation(seq, self.vocab)
         keep = (rank < k.unsqueeze(1))
         canvas, blanks, rest, loc, lb, rb = get_canvas(seq, keep, n, self.vocab)
         loss_loc, loss_word, loss_lrb = self.get_loss(seq, canvas, blanks, rest, loc, lb, rb)
         nll_lb = (loss_loc + loss_word + loss_lrb) * n.float() - (n + 1).float().lgamma()
-        return {'loss' : nll_lb.sum() / n_real.sum(),
-                'loc'  : loss_loc.mean(),
-                'word' : loss_word.mean(),
-                'lrb'  : loss_lrb.mean()
-               }
+        return {'loss': nll_lb.sum() / n_real.sum(),
+                'loc': loss_loc.mean(),
+                'word': loss_word.mean(),
+                'lrb': loss_lrb.mean()
+                }
 
     def nll_mc(self, seq, n, m):
         """

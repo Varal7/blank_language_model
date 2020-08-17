@@ -6,8 +6,7 @@ import pytorch_lightning as pl
 
 from transformer.Models import Encoder
 from optimizer import config_opt_schedule
-from utils import get_known_length_canvas, sample_permutation, \
-                  seq_cross_entropy, collect, batch_randint
+from utils import get_known_length_canvas, sample_permutation, seq_cross_entropy, collect, batch_randint
 
 
 class LBLM(pl.LightningModule):
@@ -76,7 +75,7 @@ class LBLM(pl.LightningModule):
 
     def validation_epoch_end(self, outputs):
         logs = self.eval_epoch_end(outputs)
-        val_logs = {'val_'+k: v for k, v in logs.items()}
+        val_logs = {'val_' + k: v for k, v in logs.items()}
         return {'val_loss': logs['loss'], 'log': val_logs}
 
     def test_step(self, batch, batch_idx):
@@ -84,7 +83,7 @@ class LBLM(pl.LightningModule):
 
     def test_epoch_end(self, outputs):
         logs = self.eval_epoch_end(outputs)
-        test_logs = {'test_'+k: v for k, v in logs.items()}
+        test_logs = {'test_' + k: v for k, v in logs.items()}
         return {'test_loss': logs['loss'], 'log': test_logs}
 
     def forward_encoder(self, canvas):
@@ -94,9 +93,9 @@ class LBLM(pl.LightningModule):
         return output
 
     def forward(self, action, *args):
-        if action == "nll_mc":
+        if action == 'nll_mc':
             return self.nll_mc(*args)
-        elif action == "losses":
+        elif action == 'losses':
             return self.losses(*args)
         raise NotImplementedError
 
@@ -118,7 +117,6 @@ class LBLM(pl.LightningModule):
         loss_word = loss_word.sum(1) / count.float()
         output_word = torch.cat((output_loc, self.G.src_word_emb(target)), -1)
 
-
         logits_lrb = self.lrb(output_word)
 
         # Mask out illegal blank options
@@ -137,26 +135,30 @@ class LBLM(pl.LightningModule):
         return loss_loc, loss_word, loss_lrb
 
     def losses(self, seq, n, n_real):
+        """
+        Args:
+            n: number of BPE tokens
+            n_real: number of real words (for reporting PPL)
+        """
         m = (seq == self.vocab.missing).sum(1)
         # m = torch.max(m, n - 10)
-        # k = m + (torch.rand_like(n.float()) * (n - m).float()).long() # sample k from m to n-1
         k = batch_randint(m, n - 1)
         rank = sample_permutation(seq, self.vocab)
         keep = (rank < k.unsqueeze(1))
         canvas, blanks, rest, loc, lb = get_known_length_canvas(seq, keep, n, self.vocab)
         loss_loc, loss_word, loss_lrb = self.get_loss(seq, canvas, blanks, rest, loc, lb)
         nll_lb = (loss_loc + loss_word + loss_lrb) * (n - m).float() - (n - m + 1).float().lgamma()
-        return {'loss' : nll_lb.sum() / n_real.sum(),
-                'loc'  : loss_loc.mean(),
-                'word' : loss_word.mean(),
-                'lrb'  : loss_lrb.mean()
-               }
+        return {'loss': nll_lb.sum() / n_real.sum(),
+                'loc': loss_loc.mean(),
+                'word': loss_word.mean(),
+                'lrb': loss_lrb.mean()
+                }
 
-    def nll_mc(self, seq, n, n_mc):
+    def nll_mc(self, seq, n, m):
         """
         Compute negative log-likelihood by monte carlo estimate
         Args:
-            n_mc: number of samples to take
+            m: number of samples to take
 
         Note: sentences in the batch must have the same length
         """

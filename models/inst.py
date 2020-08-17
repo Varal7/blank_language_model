@@ -6,8 +6,7 @@ import pytorch_lightning as pl
 
 from transformer.Models import Encoder
 from optimizer import config_opt_schedule
-from utils import get_ins_canvas, sample_permutation, \
-                  seq_cross_entropy, collect, batch_randint, new_arange
+from utils import get_ins_canvas, sample_permutation, seq_cross_entropy, collect, batch_randint, new_arange
 
 
 class InsTLM(pl.LightningModule):
@@ -70,7 +69,7 @@ class InsTLM(pl.LightningModule):
 
     def validation_epoch_end(self, outputs):
         logs = self.eval_epoch_end(outputs)
-        val_logs = {'val_'+k: v for k, v in logs.items()}
+        val_logs = {'val_' + k: v for k, v in logs.items()}
         return {'val_loss': logs['loss'], 'log': val_logs}
 
     def test_step(self, batch, batch_idx):
@@ -78,7 +77,7 @@ class InsTLM(pl.LightningModule):
 
     def test_epoch_end(self, outputs):
         logs = self.eval_epoch_end(outputs)
-        test_logs = {'test_'+k: v for k, v in logs.items()}
+        test_logs = {'test_' + k: v for k, v in logs.items()}
         return {'test_loss': logs['loss'], 'log': test_logs}
 
     def forward_encoder(self, canvas):
@@ -88,18 +87,16 @@ class InsTLM(pl.LightningModule):
         return output
 
     def forward(self, action, *args):
-        if action == "nll_mc":
+        if action == 'nll_mc':
             return self.nll_mc(*args)
-        elif action == "losses":
+        elif action == 'losses':
             return self.losses(*args)
         raise NotImplementedError
 
     def get_loss(self, seq, canvas, rest, loc, mask):
         count = (rest != -1).sum(1)
         output = self.forward_encoder(canvas)
-        features = self.pool_out(
-                torch.cat((output[:, :-1, :], output[:, 1:, :]), dim=-1)
-        )
+        features = self.pool_out(torch.cat((output[:, :-1, :], output[:, 1:, :]), dim=-1))
         logits_loc = self.loc(features).squeeze(-1)
         logits_loc[~mask] = float('-inf')
         nll_loc = -F.log_softmax(logits_loc, 1)
@@ -114,31 +111,26 @@ class InsTLM(pl.LightningModule):
         # output_word = torch.cat((output_loc, self.G.src_word_emb(target)), -1)
         return loss_loc, loss_word
 
-
     def losses(self, seq, n, n_real):
         """
-        seq is a tensor of tokens in batch, starting with <first>, endling with <last> and optionally including <eos>
-            <first> tok tok ... tok <last> <pad> <pad>
-        n is the number of BPE tokens
-        n_real is the number of real words
+        Args:
+            n: number of BPE tokens
+            n_real: number of real words (for reporting PPL)
         """
         m = (seq == self.vocab.missing).sum(1)
-        #  k = (torch.rand_like(n.float()) * (n + 1).float()).long() # sample k from 0 to n
         k = batch_randint(m, n)
-
         rank = sample_permutation(seq, self.vocab)
-        keep = (rank < (k + 2).unsqueeze(1)) # keep <first>, <last> and k tokens with k >= m
+        keep = (rank < (k + 2).unsqueeze(1))    # keep <first>, <last> and k tokens with k >= m
         canvas, rest, loc = get_ins_canvas(seq, keep, n, self.vocab)
 
-
         # canvas has <first> + k tokens + <last>, so k + 1 slots
-        mask = (new_arange(canvas) < (k + 1).unsqueeze(1))[:, :-1] # mask for logits_loc
+        mask = (new_arange(canvas) < (k + 1).unsqueeze(1))[:, :-1]  # mask for logits_loc
         loss_loc, loss_word = self.get_loss(seq, canvas, rest, loc, mask)
         nll_lb = (loss_loc + loss_word) * (n - m + 1).float() - (n - m + 1).float().lgamma()
-        return {'loss' : nll_lb.sum() / n_real.sum(),
-                'loc'  : loss_loc.mean(),
-                'word' : loss_word.mean(),
-               }
+        return {'loss': nll_lb.sum() / n_real.sum(),
+                'loc': loss_loc.mean(),
+                'word': loss_word.mean(),
+                }
 
     def nll_mc(self, seq, n, m):
         """
@@ -152,18 +144,18 @@ class InsTLM(pl.LightningModule):
         for _ in range(m):
             rank = sample_permutation(seq, self.vocab)
             logp = 0.
-            for k in range(2, seq.size(1) + 1): # k from 2 to n + 2
+            for k in range(2, seq.size(1) + 1):     # k from 2 to n + 2
                 keep = (rank < k)
                 canvas, rest, loc = get_ins_canvas(seq, keep, n, self.vocab)
                 if k == seq.size(1):
-                    pass # rest and loc are already correct
+                    pass    # rest and loc are already correct
                 else:
-                    k_th = (rank == k).nonzero(as_tuple=True)[1] # First token not kept
+                    k_th = (rank == k).nonzero(as_tuple=True)[1]    # First token not kept
                     x, y = (rest == k_th.unsqueeze(1)).nonzero(as_tuple=True)
                     assert len(seq) == len(x)
                     assert torch.all(x == torch.arange(len(seq), device=seq.device))
                     rest, loc = [t[x, y].unsqueeze(1) for t in [rest, loc]]
-                mask = (new_arange(canvas) < (k - 1))[:, :-1] # mask for logits_loc
+                mask = (new_arange(canvas) < (k - 1))[:, :-1]   # mask for logits_loc
                 loss_loc, loss_word = self.get_loss(seq, canvas, rest, loc, mask)
                 logp -= loss_loc + loss_word
             a.append(logp.unsqueeze(1))
