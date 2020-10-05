@@ -131,7 +131,7 @@ def beam_search(seq, model, vocab, device, write_fill, beam_size):
         # Concatenate output with word embedding
         b_size = len(b_output_loc)
         b_output_word = torch.cat((b_output_loc.unsqueeze(1).expand(-1, vocab.size, -1),
-            model.G.src_word_emb.weight.expand(b_size, -1, -1)), -1)
+            model.enc.src_word_emb.weight.expand(b_size, -1, -1)), -1)
 
         # Get logits for lrb
         with torch.no_grad():
@@ -216,7 +216,7 @@ def generate(seq, model, vocab, device, decode, write_fill):
         logits_word = model.word(output_loc) * model.x_logit_scale
         lprob_word = F.log_softmax(logits_word, -1)
         output_word = torch.cat((output_loc.unsqueeze(0).expand(vocab.size, -1),
-            model.G.src_word_emb.weight), -1)
+            model.enc.src_word_emb.weight), -1)
         logits_lrb = model.lrb(output_word)
         logits_lrb[:, length_previous:] = float('-inf')
         max_blank_len = logits_lrb.shape[1]
@@ -227,7 +227,7 @@ def generate(seq, model, vocab, device, decode, write_fill):
 
         # predict word first and then lrb
         #word = select(model.word(output_loc) * model.x_logit_scale, decode)
-        #output_word = torch.cat((output_loc, model.G.src_word_emb(word)), dim=-1)
+        #output_word = torch.cat((output_loc, model.enc.src_word_emb(word)), dim=-1)
         #lrb = select(model.lrb(output_word), decode)
 
         lrb = min(lrb, length_previous - 1)

@@ -17,7 +17,7 @@ class BLM(pl.LightningModule):
         self.vocab = vocab
         self.hparams = hparams
 
-        self.G = Encoder(
+        self.enc = Encoder(
             n_src_vocab=vocab.size, len_max_seq=hparams.max_len,
             d_word_vec=hparams.d_model, d_model=hparams.d_model,
             d_inner=hparams.d_inner_hid, d_k=hparams.d_k, d_v=hparams.d_v,
@@ -28,7 +28,7 @@ class BLM(pl.LightningModule):
         nn.init.xavier_normal_(self.word.weight)
         self.x_logit_scale = 1.
         if hparams.share_emb_prj_weight:
-            self.word.weight = self.G.src_word_emb.weight
+            self.word.weight = self.enc.src_word_emb.weight
             self.x_logit_scale = (hparams.d_model ** -0.5)
 
         self.loc = nn.Linear(hparams.d_model, 1)
@@ -86,7 +86,7 @@ class BLM(pl.LightningModule):
     def forward_encoder(self, canvas):
         pos = (1 + torch.arange(canvas.size(1))).repeat(len(canvas), 1)
         pos[canvas == self.vocab.pad] = 0
-        output, *_ = self.G(canvas, pos.to(canvas.device))
+        output, *_ = self.enc(canvas, pos.to(canvas.device))
         return output
 
     def forward(self, action, *args):
@@ -112,7 +112,7 @@ class BLM(pl.LightningModule):
         target = collect(seq, rest, self.vocab.pad)
         loss_word = seq_cross_entropy(logits_word, target, self.vocab.pad)
         loss_word = loss_word.sum(1) / count.float()
-        output_word = torch.cat((output_loc, self.G.src_word_emb(target)), -1)
+        output_word = torch.cat((output_loc, self.enc.src_word_emb(target)), -1)
 
         logits_lrb = self.lrb(output_word)
         loss_lrb = seq_cross_entropy(logits_lrb, lb * 2 + rb, -3)
