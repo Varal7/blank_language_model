@@ -3,7 +3,7 @@ import torch.nn.functional as F
 
 from torch.utils.cpp_extension import load
 
-get_canvas_cpp = load(name='canvas', sources=['get_canvas.cpp'])
+get_canvas_cpp = load(name='canvas', sources=['models/get_canvas.cpp'])
 
 
 def new_arange(x, *size):
