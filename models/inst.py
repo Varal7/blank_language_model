@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from . lm import LM
-from utils import get_ins_canvas, sample_permutation, seq_cross_entropy, collect, batch_randint, new_arange
+from . torch_utils import get_ins_canvas, sample_permutation, seq_cross_entropy, collect, batch_randint, new_arange
 
 
 class InsTLM(LM):

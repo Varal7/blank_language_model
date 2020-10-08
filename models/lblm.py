@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from . lm import LM
-from utils import get_known_length_canvas, sample_permutation, seq_cross_entropy, collect, batch_randint
+from . torch_utils import get_known_length_canvas, sample_permutation, seq_cross_entropy, collect, batch_randint
 
 
 class LBLM(LM):
