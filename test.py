@@ -7,9 +7,8 @@ import torch.nn.functional as F
 import pytorch_lightning as pl
 
 from vocab import Vocab
-from model import BLM, collect
-from utils import set_seed, strip_eos, Bunch, parse_epoch, get_last_model_path
-from pytorch_lightning.logging import NeptuneLogger, TensorBoardLogger
+from models import BLM
+from utils import strip_eos, Bunch, parse_epoch, get_last_model_path, collect
 from dataset import load_data, get_eval_dataloader, load_sent
 import re
 
@@ -287,7 +286,7 @@ def main():
     device = torch.device("cuda" if cuda else "cpu")
     args.gpus = 1 if cuda else 0
 
-    set_seed(args.seed)
+    pl.seed_everything(args.seed)
     vocab = Vocab(os.path.join(args.checkpoint, args.vocab))
 
     epoch, path = get_last_model_path(args.checkpoint)
@@ -307,20 +306,11 @@ def main():
 
         val_dl = get_eval_dataloader(sents, vocab, model.hparams.eval_max_tok, data_workers=model.hparams.data_workers)
 
-        neptune_logger = NeptuneLogger(
-            project_name='varal7/blm-eval',
-            experiment_name="eval",
-            params=model_args
-        )
-
         trainer = pl.Trainer(
             num_sanity_val_steps=0,
             gpus=args.gpus,
             amp_level=args.fp16_opt_level,
             precision=16 if args.fp16 else 32,
-            logger=[
-                neptune_logger,
-            ],
             default_save_path="testing_logs"
         )
 
