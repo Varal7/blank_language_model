@@ -1,4 +1,5 @@
 .DS_Store
+rsync_exclude.txt
 figs/
 
 # Byte-compiled / optimized / DLL files
