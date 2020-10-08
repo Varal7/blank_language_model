@@ -6,20 +6,9 @@ import torch
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import LearningRateLogger
 
-from models import InsTLM, BLM, LBLM
+from models import get_model_class
 from vocab import Vocab
 from dataset import load_data, get_train_dataloader, get_eval_dataloader
-
-
-def get_model_class(model_type):
-    if model_type == 'blm':
-        return BLM
-    elif model_type == 'inst':
-        return InsTLM
-    elif model_type == 'lblm':
-        return LBLM
-    else:
-        raise ValueError('Unknown model ' + model_type)
 
 
 def get_args(path):
