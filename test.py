@@ -19,7 +19,7 @@ def select(logits, decode):
 
 def generate(seq, model, vocab, device, decode):
     seq = torch.LongTensor(seq).to(device)
-    blanks = [i for i, w in enumerate(seq) if w == vocab.blank]
+    blanks = [i for i, w in enumerate(seq) if w == Vocab.blank]
     is_fill = [0] * len(seq)
     fill = [[vocab.idx2word[id] for id, isf in zip(seq, is_fill) if isf]]
     full = [[vocab.idx2word[id] for id in seq]]
@@ -30,12 +30,12 @@ def generate(seq, model, vocab, device, decode):
         output_loc = output_blank[loc]
 
         logits_word = model.word(output_loc) * model.x_logit_scale
-        logits_word[vocab.blank] = float('-inf')    # never predict <blank>
+        logits_word[Vocab.blank] = float('-inf')    # never predict <blank>
 
         # joint word, lrb prediction
         lprob_word = F.log_softmax(logits_word, -1)
         output_word = torch.cat((output_loc.unsqueeze(0).expand(vocab.size, -1),
-                                model.G.src_word_emb.weight), -1)
+                                 model.G.src_word_emb.weight), -1)
         logits_lrb = model.lrb(output_word)
         lprob_lrb = F.log_softmax(logits_lrb, -1)
         lprob_word_lrb = lprob_word.unsqueeze(1) + lprob_lrb
@@ -48,11 +48,11 @@ def generate(seq, model, vocab, device, decode):
         # lrb = select(model.lrb(output_word), decode)
 
         lb, rb = lrb / 2, lrb % 2
-        ins = ([vocab.blank] if lb else []) + [word] + ([vocab.blank] if rb else [])
+        ins = ([Vocab.blank] if lb else []) + [word] + ([Vocab.blank] if rb else [])
         ins = torch.LongTensor(ins).to(device)
         pos = blanks[loc]
         seq = torch.cat((seq[:pos], ins, seq[pos + 1:]))
-        blanks = [i for i, w in enumerate(seq) if w == vocab.blank]
+        blanks = [i for i, w in enumerate(seq) if w == Vocab.blank]
         is_fill = is_fill[:pos] + [1] * len(ins) + is_fill[pos + 1:]
         fill.append([vocab.idx2word[id] for id, isf in zip(seq, is_fill) if isf])
         full.append([vocab.idx2word[id] for id in seq])
@@ -77,9 +77,6 @@ def main(args):
     model.eval()
     vocab = Vocab(os.path.join(model.hparams.root_dir, 'vocab.txt'))
 
-    if args.output:
-        output = os.path.join(os.path.dirname(os.path.dirname(args.checkpoint)), 'outputs/', args.output)
-
     if args.eval:
         data = load_data(args.eval, model.hparams.add_eos, model.hparams.cat_sent, model.hparams.max_len)
         dl = get_eval_dataloader(
@@ -93,18 +90,18 @@ def main(args):
             default_root_dir='testing_logs')
         trainer.test(model, test_dataloaders=dl)
 
+    if args.output:
+        output = os.path.join(os.path.dirname(os.path.dirname(args.checkpoint)), 'outputs/', args.output)
+
     if args.sample:
-        with open(output + '.fill', 'w') as f_fill:
-            with open(output + '.full', 'w') as f_full:
-                for _ in tqdm(range(args.sample)):
-                    fill, full = generate([vocab.blank], model, vocab, device, args.decode)
-                    write(f_fill, fill, args.write_mid)
-                    write(f_full, full, args.write_mid)
+        with open(output, 'w') as f:
+            for i in tqdm(range(args.sample)):
+                _, full = generate([Vocab.blank], model, vocab, device, args.decode)
+                write(f, full, args.write_mid)
 
     if args.fill:
         sents = load_sent(args.fill, model.hparams.add_eos)
-        sents = [[vocab.word2idx[w] if w in vocab.word2idx else vocab.unk
-                 for w in s] for s in sents]
+        sents = [[vocab.word_to_idx(w) for w in s] for s in sents]
         with open(output + '.fill', 'w') as f_fill:
             with open(output + '.full', 'w') as f_full:
                 for s in tqdm(sents):
@@ -118,32 +115,32 @@ if __name__ == '__main__':
 
     parser.add_argument('--checkpoint', required=True,
                         help='path to checkpoint')
-    parser.add_argument('--output', default='',
-                        help='output file')
 
     parser.add_argument('--eval', default='',
                         help='data file to evaluate')
+    parser.add_argument('--n_mc', type=int, default=100,
+                        help='num of samples for monte carlo estimate of ppl')
+    parser.add_argument('--max_tok', type=int, default=40000,
+                        help='max number of tokens per batch')
+
+    parser.add_argument('--output', default='',
+                        help='output file')
     parser.add_argument('--sample', type=int, default=0,
                         help='num of sentences to generate')
     parser.add_argument('--fill', default='',
                         help='input file to fill')
-
-    parser.add_argument('--n_mc', type=int, default=100,
-                        help='num of samples for monte carlo estimate of ppl')
     parser.add_argument('--decode', default='greedy',
                         choices=['greedy', 'sample'],
                         help='greedy decoding or sampling')
     parser.add_argument('--write_mid', action='store_true',
                         help='write intermediate partial sentences')
 
-    parser.add_argument('--max_tok', type=int, default=40000,
-                        help='max number of tokens per batch')
     parser.add_argument('--seed', type=int, default=1111,
                         help='random seed')
-    parser.add_argument('--no_cuda', action='store_true',
-                        help='disable CUDA')
     parser.add_argument('--data_workers', type=int, default=8,
                         help='data workers')
+    parser.add_argument('--no_cuda', action='store_true',
+                        help='disable CUDA')
     parser.add_argument('--fp16', action='store_true',
                         help='whether to use 16-bit (mixed) precision '
                              '(through NVIDIA apex) instead of 32-bit')
