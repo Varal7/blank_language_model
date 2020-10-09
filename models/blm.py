@@ -73,7 +73,7 @@ class BLM(LM):
         for _ in range(m):
             rank = sample_permutation(seq, self.vocab)
             logp = 0.
-            for k in (range(seq.size(1))):
+            for k in range(seq.size(1)):
                 keep = (rank < k)
                 canvas, blanks, rest, loc, lb, rb = get_canvas(seq, keep, n, self.vocab)
                 k_th = (rank == k).nonzero(as_tuple=True)[1]

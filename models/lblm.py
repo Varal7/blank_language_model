@@ -82,4 +82,18 @@ class LBLM(LM):
 
         Note: sentences in the batch must have the same length
         """
-        raise NotImplementedError
+        a = []
+        for _ in range(m):
+            rank = sample_permutation(seq, self.vocab)
+            logp = 0.
+            for k in range(seq.size(1)):
+                keep = (rank < k)
+                canvas, blanks, rest, loc, lb = get_known_length_canvas(seq, keep, n, self.vocab)
+                k_th = (rank == k).nonzero(as_tuple=True)[1]
+                x, y = (rest == k_th.unsqueeze(1)).nonzero(as_tuple=True)
+                assert torch.all(x == torch.arange(len(seq), device=seq.device))
+                rest, loc, lb = [t[x, y].unsqueeze(1) for t in [rest, loc, lb]]
+                loss_loc, loss_word, loss_lrb = self.get_loss(seq, canvas, blanks, rest, loc, lb)
+                logp -= loss_loc + loss_word + loss_lrb
+            a.append(logp.unsqueeze(1))
+        return np.log(m) - (n + 1).float().lgamma() - torch.logsumexp(torch.cat(a, 1), 1)
