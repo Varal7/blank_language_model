@@ -5,13 +5,14 @@ import torch.nn.functional as F
 
 from . lm import LM
 from . torch_utils import get_ins_canvas, sample_permutation, seq_cross_entropy, collect, batch_randint, new_arange
+from vocab import Vocab
 
 
 class InsTLM(LM):
     """Insertion Transformer Language Model"""
 
-    def __init__(self, vocab, hparams):
-        super().__init__(vocab, hparams)
+    def __init__(self, hparams):
+        super().__init__(hparams)
 
         self.pool_out = nn.Linear(2 * hparams.d_model, hparams.d_model)
 
@@ -27,8 +28,8 @@ class InsTLM(LM):
         output_loc = collect(features, loc)
 
         logits_word = self.word(output_loc) * self.x_logit_scale
-        target = collect(seq, rest, self.vocab.pad)
-        loss_word = seq_cross_entropy(logits_word, target, self.vocab.pad)
+        target = collect(seq, rest, Vocab.pad)
+        loss_word = seq_cross_entropy(logits_word, target, Vocab.pad)
         loss_word = loss_word.sum(1) / count.float()
         # output_word = torch.cat((output_loc, self.enc.src_word_emb(target)), -1)
         return loss_loc, loss_word
@@ -39,11 +40,11 @@ class InsTLM(LM):
             n: number of BPE tokens
             n_real: number of real words (for reporting PPL)
         """
-        m = (seq == self.vocab.missing).sum(1)
+        m = (seq == Vocab.missing).sum(1)
         k = batch_randint(m, n)
-        rank = sample_permutation(seq, self.vocab)
+        rank = sample_permutation(seq)
         keep = (rank < (k + 2).unsqueeze(1))    # keep <first>, <last> and k tokens with k >= m
-        canvas, rest, loc = get_ins_canvas(seq, keep, n, self.vocab)
+        canvas, rest, loc = get_ins_canvas(seq, keep, n)
 
         # canvas has <first> + k tokens + <last>, so k + 1 slots
         mask = (new_arange(canvas) < (k + 1).unsqueeze(1))[:, :-1]  # mask for logits_loc
@@ -64,11 +65,11 @@ class InsTLM(LM):
         """
         a = []
         for _ in range(m):
-            rank = sample_permutation(seq, self.vocab)
+            rank = sample_permutation(seq)
             logp = 0.
             for k in range(2, seq.size(1) + 1):     # k from 2 to n + 2
                 keep = (rank < k)
-                canvas, rest, loc = get_ins_canvas(seq, keep, n, self.vocab)
+                canvas, rest, loc = get_ins_canvas(seq, keep, n)
                 if k == seq.size(1):
                     pass    # rest and loc are already correct
                 else:

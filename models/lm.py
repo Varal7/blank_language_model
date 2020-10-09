@@ -4,24 +4,24 @@ import pytorch_lightning as pl
 
 from transformer.Models import Encoder
 from optimizer import config_opt_schedule
+from vocab import Vocab
 
 
 class LM(pl.LightningModule):
     """Language Model Container Class"""
 
-    def __init__(self, vocab, hparams):
+    def __init__(self, hparams):
         super().__init__()
-        self.vocab = vocab
         self.hparams = hparams
 
         self.enc = Encoder(
-            n_src_vocab=vocab.size, len_max_seq=hparams.max_len,
+            n_src_vocab=hparams.vocab_size, len_max_seq=hparams.max_len,
             d_word_vec=hparams.d_model, d_model=hparams.d_model,
             d_inner=hparams.d_inner_hid, d_k=hparams.d_k, d_v=hparams.d_v,
             n_layers=hparams.n_layers, n_head=hparams.n_head,
             dropout=hparams.dropout)
 
-        self.word = nn.Linear(hparams.d_model, vocab.size, bias=False)
+        self.word = nn.Linear(hparams.d_model, hparams.vocab_size, bias=False)
         nn.init.xavier_normal_(self.word.weight)
         self.x_logit_scale = 1.
         if hparams.share_emb_prj_weight:
@@ -77,7 +77,7 @@ class LM(pl.LightningModule):
 
     def forward_encoder(self, canvas):
         pos = (1 + torch.arange(canvas.size(1))).repeat(len(canvas), 1)
-        pos[canvas == self.vocab.pad] = 0
+        pos[canvas == Vocab.pad] = 0
         output, *_ = self.enc(canvas, pos.to(canvas.device))
         return output
 

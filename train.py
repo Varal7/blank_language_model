@@ -34,11 +34,10 @@ def main(args):
 
     vocab_file = os.path.join(args.root_dir, 'vocab.txt')
     if not os.path.isfile(vocab_file):
-        if args.model_type == 'lblm':
-            Vocab.build(train_data, vocab_file, args.vocab_size, args.max_len)
-        else:
-            Vocab.build(train_data, vocab_file, args.vocab_size)
+        max_blank_len = args.max_len if args.model_type == 'lblm' else None
+        Vocab.build(train_data, vocab_file, args.vocab_size, max_blank_len)
     vocab = Vocab(vocab_file)
+    args.vocab_size = vocab.size
 
     train_dl = get_train_dataloader(
         train_data, vocab, args.max_tok,
@@ -49,7 +48,7 @@ def main(args):
         data_workers=args.data_workers if not args.multigpu else 0,
         model_type=args.model_type)
 
-    model = get_model_class(args.model_type)(vocab, args)
+    model = get_model_class(args.model_type)(args)
 
     if args.load_checkpoint:
         ckpt = torch.load(args.load_checkpoint)

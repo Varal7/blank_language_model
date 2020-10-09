@@ -1,7 +1,8 @@
 import torch
 import torch.nn.functional as F
-
 from torch.utils.cpp_extension import load
+
+from vocab import Vocab
 
 get_canvas_cpp = load(name='canvas', sources=['models/get_canvas.cpp'])
 
@@ -32,12 +33,12 @@ def batch_randint(start, batch_end):
     return start + (torch.rand_like(batch_end.float()) * (batch_end - start + 1).float()).long()
 
 
-def sample_permutation(seq, vocab):
+def sample_permutation(seq):
     score = torch.rand_like(seq.float())
-    score.masked_fill_(seq == vocab.pad, 1)         # always put pads last
-    score.masked_fill_(seq == vocab.first, -1)      # always keep <first>
-    score.masked_fill_(seq == vocab.last, -1)       # always keep <last>
-    score.masked_fill_(seq == vocab.missing, -1)    # always keep missings
+    score.masked_fill_(seq == Vocab.pad, 1)         # always put pads last
+    score.masked_fill_(seq == Vocab.first, -1)      # always keep <first>
+    score.masked_fill_(seq == Vocab.last, -1)       # always keep <last>
+    score.masked_fill_(seq == Vocab.missing, -1)    # always keep missings
     indices = score.argsort()
     rank = torch.zeros_like(seq)
     rank[torch.arange(len(seq)).unsqueeze(1), indices] = \
@@ -76,7 +77,7 @@ def to_tensor(x, pad_id, device):
     return torch.tensor(x_).to(device)
 
 
-def get_canvas(seq, keep, n, vocab):
+def get_canvas(seq, keep, n):
     """
     Args:
         seq: original (batched) sequence of tokens
@@ -91,12 +92,12 @@ def get_canvas(seq, keep, n, vocab):
         rb: whether to create a right blank for predicting each token in rest
         (rest, loc, lb, rb have the same shape)
     """
-    res = get_canvas_cpp.get_canvas(seq.tolist(), keep.tolist(), n.tolist(), vocab.blank)
-    pad = [vocab.pad, -1, -1, -1, -1, -1]
+    res = get_canvas_cpp.get_canvas(seq.tolist(), keep.tolist(), n.tolist(), Vocab.blank)
+    pad = [Vocab.pad, -1, -1, -1, -1, -1]
     return [to_tensor(r, p, seq.device) for r, p in zip(res, pad)]
 
 
-def get_known_length_canvas(seq, keep, n, vocab):
+def get_known_length_canvas(seq, keep, n):
     """
     Return:
         canvas: replace consecutive masked tokens in seq by the <blank_t> token
@@ -106,12 +107,12 @@ def get_known_length_canvas(seq, keep, n, vocab):
         lb: length of the new left blank for predicting each token in rest
         (rest, loc, lb have the same shape)
     """
-    res = get_canvas_cpp.get_known_length_canvas(seq.tolist(), keep.tolist(), n.tolist(), vocab.blanks[0])
-    pad = [vocab.pad, -1, -1, -1, -1]
+    res = get_canvas_cpp.get_known_length_canvas(seq.tolist(), keep.tolist(), n.tolist(), Vocab.blank_0)
+    pad = [Vocab.pad, -1, -1, -1, -1]
     return [to_tensor(r, p, seq.device) for r, p in zip(res, pad)]
 
 
-def get_ins_canvas(seq, keep, n, vocab):
+def get_ins_canvas(seq, keep, n):
     """
     Return:
         canvas: remove masked tokens in seq
@@ -120,5 +121,5 @@ def get_ins_canvas(seq, keep, n, vocab):
         (rest, loc have the same shape)
     """
     res = get_canvas_cpp.get_insertion_canvas(seq.tolist(), keep.tolist(), n.tolist())
-    pad = [vocab.pad, -1, -1]
+    pad = [Vocab.pad, -1, -1]
     return [to_tensor(r, p, seq.device) for r, p in zip(res, pad)]

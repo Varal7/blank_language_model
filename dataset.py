@@ -1,5 +1,7 @@
 import torch
 
+from vocab import Vocab
+
 
 def get_batch(x, vocab, append_at_ends=False):
     seq = []
@@ -12,8 +14,8 @@ def get_batch(x, vocab, append_at_ends=False):
 
         s_idx = [vocab.word_to_idx(w) for w in s]
         if append_at_ends:
-            s_idx = [vocab.first] + s_idx + [vocab.last]
-        seq.append(s_idx + [vocab.pad] * (max_len - l))
+            s_idx = [Vocab.first] + s_idx + [Vocab.last]
+        seq.append(s_idx + [Vocab.pad] * (max_len - l))
     return torch.LongTensor(seq), torch.LongTensor(n), torch.LongTensor(n_real)
 
 

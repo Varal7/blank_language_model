@@ -5,13 +5,14 @@ import torch.nn.functional as F
 
 from . lm import LM
 from . torch_utils import get_canvas, sample_permutation, seq_cross_entropy, collect, batch_randint
+from vocab import Vocab
 
 
 class BLM(LM):
     """Blank Language Model"""
 
-    def __init__(self, vocab, hparams):
-        super().__init__(vocab, hparams)
+    def __init__(self, hparams):
+        super().__init__(hparams)
 
         self.lrb = nn.Sequential(
             nn.Linear(hparams.d_model * 2, hparams.d_model * 2),
@@ -32,8 +33,8 @@ class BLM(LM):
         output_loc = collect(output_blank, loc)
 
         logits_word = self.word(output_loc) * self.x_logit_scale
-        target = collect(seq, rest, self.vocab.pad)
-        loss_word = seq_cross_entropy(logits_word, target, self.vocab.pad)
+        target = collect(seq, rest, Vocab.pad)
+        loss_word = seq_cross_entropy(logits_word, target, Vocab.pad)
         loss_word = loss_word.sum(1) / count.float()
         output_word = torch.cat((output_loc, self.enc.src_word_emb(target)), -1)
 
@@ -50,9 +51,9 @@ class BLM(LM):
             n_real: number of real words (for reporting PPL)
         """
         k = batch_randint(0, n - 1)
-        rank = sample_permutation(seq, self.vocab)
+        rank = sample_permutation(seq)
         keep = (rank < k.unsqueeze(1))
-        canvas, blanks, rest, loc, lb, rb = get_canvas(seq, keep, n, self.vocab)
+        canvas, blanks, rest, loc, lb, rb = get_canvas(seq, keep, n)
         loss_loc, loss_word, loss_lrb = self.get_loss(seq, canvas, blanks, rest, loc, lb, rb)
         nll_lb = (loss_loc + loss_word + loss_lrb) * n.float() - (n + 1).float().lgamma()
         return {'loss': nll_lb.sum() / n_real.sum(),
@@ -71,11 +72,11 @@ class BLM(LM):
         """
         a = []
         for _ in range(m):
-            rank = sample_permutation(seq, self.vocab)
+            rank = sample_permutation(seq)
             logp = 0.
             for k in range(seq.size(1)):
                 keep = (rank < k)
-                canvas, blanks, rest, loc, lb, rb = get_canvas(seq, keep, n, self.vocab)
+                canvas, blanks, rest, loc, lb, rb = get_canvas(seq, keep, n)
                 k_th = (rank == k).nonzero(as_tuple=True)[1]
                 x, y = (rest == k_th.unsqueeze(1)).nonzero(as_tuple=True)
                 assert torch.all(x == torch.arange(len(seq), device=seq.device))
