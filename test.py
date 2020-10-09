@@ -243,21 +243,6 @@ def main(args):
             default_root_dir='testing_logs')
         trainer.test(model, test_dataloaders=dl)
 
-    if args.eval_split:
-        sents = load_data(args.eval_split, False, False, model.hparams.max_len)
-
-        val_dl = get_eval_dataloader(sents, vocab, model.hparams.eval_max_tok, data_workers=model.hparams.data_workers)
-
-        trainer = pl.Trainer(
-            num_sanity_val_steps=0,
-            gpus=args.gpus,
-            amp_level=args.fp16_opt_level,
-            precision=16 if args.fp16 else 32,
-            default_save_path='testing_logs'
-        )
-
-        trainer.test(model, test_dataloaders=val_dl)
-
     if args.sample:
         with open(output + '.fill', 'w') as f_fill:
             with open(output + '.full', 'w') as f_full:
@@ -292,8 +277,6 @@ if __name__ == '__main__':
 
     parser.add_argument('--eval', default='',
                         help='data file to evaluate')
-    parser.add_argument('--eval_split', default='',
-                        help='data split to evaluate')
     parser.add_argument('--sample', type=int, default=0,
                         help='num of sentences to generate')
     parser.add_argument('--fill', default='',
