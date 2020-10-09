@@ -224,9 +224,10 @@ def main(args):
     model.eval()
     vocab = Vocab(os.path.join(model.hparams.root_dir, 'vocab.txt'))
 
-    out_path = os.path.join(args.checkpoint, args.output)
+    if args.output:
+        output = os.path.join(os.path.dirname(os.path.dirname(args.checkpoint)), 'outputs/', args.output)
 
-    if os.path.exists(out_path):
+    if os.path.exists(output):
         raise ValueError
 
     if args.topk:
@@ -262,8 +263,8 @@ def main(args):
         trainer.test(model, test_dataloaders=val_dl)
 
     if args.sample:
-        with open(out_path + '.fill', 'w') as f_fill:
-            with open(out_path + '.full', 'w') as f_full:
+        with open(output + '.fill', 'w') as f_fill:
+            with open(output + '.full', 'w') as f_full:
                 for _ in tqdm(range(args.sample)):
                     fill, full = generate([vocab.blank], model, vocab, device, args.decode)
                     write(f_fill, fill, args.write_mid)
@@ -273,8 +274,8 @@ def main(args):
         sents = load_sent(args.fill, model.hparams.add_eos)
         sents = [[vocab.word2idx[w] if w in vocab.word2idx else vocab.unk
                  for w in s] for s in sents]
-        with open(out_path + '.fill', 'w') as f_fill:
-            with open(out_path + '.full', 'w') as f_full:
+        with open(output + '.fill', 'w') as f_fill:
+            with open(output + '.full', 'w') as f_full:
                 for s in tqdm(sents):
                     if args.beam_size == 1:
                         fill, full = generate(s, model, vocab, device, args.decode)
@@ -288,36 +289,37 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--checkpoint', metavar='DIR', required=True,
-                        help='checkpoint directory')
-    parser.add_argument('--output', default='output.txt', metavar='FILE',
-                        help='output file (in checkpoint directory)')
+    parser.add_argument('--checkpoint', required=True,
+                        help='path to checkpoint')
+    parser.add_argument('--output', default='',
+                        help='output file')
 
-    parser.add_argument('--eval', default='', metavar='FILE',
+    parser.add_argument('--eval', default='',
                         help='data file to evaluate')
-    parser.add_argument('--eval_split', default='', metavar='FILE',
+    parser.add_argument('--eval_split', default='',
                         help='data split to evaluate')
-    parser.add_argument('--sample', type=int, default=0, metavar='N',
+    parser.add_argument('--sample', type=int, default=0,
                         help='num of sentences to generate')
-    parser.add_argument('--fill', default='', metavar='FILE',
+    parser.add_argument('--fill', default='',
                         help='input file to fill')
 
-    parser.add_argument('--n_mc', type=int, default=100, metavar='N',
+    parser.add_argument('--n_mc', type=int, default=100,
                         help='num of samples for monte carlo estimate of ppl')
-    parser.add_argument('--decode', default='greedy', metavar='M',
+    parser.add_argument('--decode', default='greedy',
                         choices=['greedy', 'sample'],
                         help='greedy decoding or sampling')
-    parser.add_argument('--beam_size', type=int, default=1, metavar='N', help='Beam size')
-    parser.add_argument('--topk', type=int, default=None, metavar='N',
-                        help='Restrict vocabulary to top topk words when doing beam search')
+    parser.add_argument('--beam_size', type=int, default=1,
+                        help='beam size')
+    parser.add_argument('--topk', type=int, default=None,
+                        help='restrict vocabulary to top topk words when doing beam search')
     parser.add_argument('--write_mid', action='store_true',
                         help='write intermediate partial sentences')
 
-    # parser.add_argument('--batch_size', type=int, default=512, metavar='N',
-    #                    help='batch size')
-    parser.add_argument('--eval_max_tok', type=int, default=40000, metavar='N',
+    # parser.add_argument('--batch_size', type=int, default=512,
+    #                     help='batch size')
+    parser.add_argument('--eval_max_tok', type=int, default=40000,
                         help='max number of tokens per batch')
-    parser.add_argument('--seed', type=int, default=1111, metavar='N',
+    parser.add_argument('--seed', type=int, default=1111,
                         help='random seed')
     parser.add_argument('--no_cuda', action='store_true',
                         help='disable CUDA')

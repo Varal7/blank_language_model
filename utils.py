@@ -33,8 +33,3 @@ def write_doc(docs, path):
             for s in d:
                 f.write(' '.join(s) + '\n')
             f.write('\n')
-
-
-class Bunch(object):
-    def __init__(self, adict):
-        self.__dict__.update(adict)
