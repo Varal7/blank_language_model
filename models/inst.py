@@ -13,6 +13,7 @@ class InsTLM(LM):
 
     def __init__(self, hparams):
         super().__init__(hparams)
+        hparams = self.hparams  # a['key'] (if so) -> a.key
 
         self.pool_out = nn.Linear(2 * hparams.d_model, hparams.d_model)
 

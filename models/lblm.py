@@ -13,6 +13,7 @@ class LBLM(LM):
 
     def __init__(self, hparams):
         super().__init__(hparams)
+        hparams = self.hparams  # a['key'] (if so) -> a.key
 
         self.lrb = nn.Sequential(
             nn.Linear(hparams.d_model * 2, hparams.d_model * 2),

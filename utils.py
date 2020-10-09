@@ -1,5 +1,19 @@
 import os
-import re
+import yaml
+
+from models import get_model_class
+
+
+def get_hparams(checkpoint):
+    hparams_file = os.path.join(os.path.dirname(os.path.dirname(checkpoint)), 'hparams.yaml')
+    with open(hparams_file) as stream:
+        return yaml.safe_load(stream)
+
+
+def load_model(checkpoint):
+    hparams = get_hparams(checkpoint)
+    model = get_model_class(hparams['model_type']).load_from_checkpoint(checkpoint)
+    return model
 
 
 def strip_eos(sents):
@@ -24,16 +38,3 @@ def write_doc(docs, path):
 class Bunch(object):
     def __init__(self, adict):
         self.__dict__.update(adict)
-
-
-def parse_epoch(filename):
-    m = re.search("_ckpt_epoch_(.*).ckpt", filename)
-    if m is None:
-        return -1
-    return int(m.group(1))
-
-
-def get_last_model_path(dir):
-    last, epoch = sorted([(filename, parse_epoch(filename)) for filename in os.listdir(dir)], key=lambda x: -x[1])[0]
-    path = os.path.join(dir, last)
-    return epoch, path

@@ -6,66 +6,9 @@ import torch.nn.functional as F
 import pytorch_lightning as pl
 
 from vocab import Vocab
-from models import BLM
-from utils import strip_eos, Bunch, get_last_model_path, collect
+from models.torch_utils import new_arange, collect
+from utils import strip_eos, load_model
 from dataset import load_data, get_eval_dataloader, load_sent
-
-parser = argparse.ArgumentParser()
-
-parser.add_argument('--checkpoint', metavar='DIR', required=True,
-                    help='checkpoint directory')
-parser.add_argument('--vocab', default='vocab.txt', metavar='FILE',
-                    help='vocab file (in checkpoint directory)')
-parser.add_argument('--output', default='output.txt', metavar='FILE',
-                    help='output file (in checkpoint directory)')
-
-parser.add_argument('--eval', default='', metavar='FILE',
-                    help='data file to evaluate')
-parser.add_argument('--eval_split', default='', metavar='FILE',
-                    help='data split to evaluate')
-parser.add_argument('--sample', type=int, default=0, metavar='N',
-                    help='num of sentences to generate')
-parser.add_argument('--fill', default='', metavar='FILE',
-                    help='input file to fill')
-
-parser.add_argument('--n_mc', type=int, default=100, metavar='N',
-                    help='num of samples for monte carlo estimate of ppl')
-parser.add_argument('--decode', default='greedy', metavar='M',
-                    choices=['greedy', 'sample'],
-                    help='greedy decoding or sampling')
-parser.add_argument('--beam_size', type=int, default=1, metavar='N', help='Beam size')
-parser.add_argument('--topk', type=int, default=None, metavar='N',
-                    help='Restrict vocabulary to top topk words when doing beam search')
-parser.add_argument('--write_mid', action='store_true',
-                    help='write intermediate partial sentences')
-
-# parser.add_argument('--batch_size', type=int, default=512, metavar='N',
-#                    help='batch size')
-parser.add_argument('--eval_max_tok', type=int, default=40000, metavar='N',
-                    help='max number of tokens per batch')
-parser.add_argument('--seed', type=int, default=1111, metavar='N',
-                    help='random seed')
-parser.add_argument('--no_cuda', action='store_true',
-                    help='disable CUDA')
-parser.add_argument("--fp16",
-                    action="store_true",
-                    help="Whether to use 16-bit (mixed) precision (through NVIDIA apex) instead of 32-bit")
-parser.add_argument("--fp16_opt_level",
-                    type=str,
-                    default="O1",
-                    help="For fp16: Apex AMP optimization level selected in ['O0', 'O1', 'O2', and 'O3']."
-                    "See details at https://nvidia.github.io/apex/amp.html")
-
-
-def get_args_model(path, vocab, args_override, device):
-    print('Load model from {}'.format(path))
-    ckpt = torch.load(path)
-    args = ckpt['hparams']
-    args.update(args_override)
-    model = BLM(vocab, Bunch(args)).to(device)
-    model.load_state_dict(ckpt['state_dict'])
-    model.eval()
-    return args, model
 
 
 def select(logits, decode):
@@ -73,16 +16,6 @@ def select(logits, decode):
         return torch.multinomial(logits.exp(), num_samples=1)[0]
     else:
         return logits.argmax()
-
-
-def new_arange(x, *size):
-    """
-    Return a Tensor of `size` filled with a range function on the device of x.
-    If size is empty, using the size of the variable x.
-    """
-    if len(size) == 0:
-        size = x.size()
-    return torch.arange(size[-1], device=x.device).expand(*size).contiguous()
 
 
 def get_index_from_mask(blank_mask):
@@ -284,19 +217,13 @@ def write(file, sents, write_mid):
     file.flush()
 
 
-def main():
-    args = parser.parse_args()
-    cuda = not args.no_cuda and torch.cuda.is_available()
-    device = torch.device("cuda" if cuda else "cpu")
-    args.gpus = 1 if cuda else 0
-
+def main(args):
     pl.seed_everything(args.seed)
-    vocab = Vocab(os.path.join(args.checkpoint, args.vocab))
 
-    epoch, path = get_last_model_path(args.checkpoint)
-    args_override = args.__dict__
-    model_args, model = get_args_model(path, vocab, args_override=args_override, device=device)
-    model_args['epoch'] = epoch
+    model = load_model(args.checkpoint).to(device)
+    model.eval()
+    vocab = Vocab(os.path.join(model.hparams.root_dir, 'vocab.txt'))
+
     out_path = os.path.join(args.checkpoint, args.output)
 
     if os.path.exists(out_path):
@@ -311,11 +238,10 @@ def main():
         val_dl = get_eval_dataloader(sents, vocab, model.hparams.eval_max_tok, data_workers=model.hparams.data_workers)
 
         trainer = pl.Trainer(
-            num_sanity_val_steps=0,
             gpus=args.gpus,
             amp_level=args.fp16_opt_level,
             precision=16 if args.fp16 else 32,
-            default_save_path="testing_logs"
+            default_root_dir='testing_logs'
         )
 
         trainer.test(model, test_dataloaders=val_dl)
@@ -360,4 +286,54 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('--checkpoint', metavar='DIR', required=True,
+                        help='checkpoint directory')
+    parser.add_argument('--output', default='output.txt', metavar='FILE',
+                        help='output file (in checkpoint directory)')
+
+    parser.add_argument('--eval', default='', metavar='FILE',
+                        help='data file to evaluate')
+    parser.add_argument('--eval_split', default='', metavar='FILE',
+                        help='data split to evaluate')
+    parser.add_argument('--sample', type=int, default=0, metavar='N',
+                        help='num of sentences to generate')
+    parser.add_argument('--fill', default='', metavar='FILE',
+                        help='input file to fill')
+
+    parser.add_argument('--n_mc', type=int, default=100, metavar='N',
+                        help='num of samples for monte carlo estimate of ppl')
+    parser.add_argument('--decode', default='greedy', metavar='M',
+                        choices=['greedy', 'sample'],
+                        help='greedy decoding or sampling')
+    parser.add_argument('--beam_size', type=int, default=1, metavar='N', help='Beam size')
+    parser.add_argument('--topk', type=int, default=None, metavar='N',
+                        help='Restrict vocabulary to top topk words when doing beam search')
+    parser.add_argument('--write_mid', action='store_true',
+                        help='write intermediate partial sentences')
+
+    # parser.add_argument('--batch_size', type=int, default=512, metavar='N',
+    #                    help='batch size')
+    parser.add_argument('--eval_max_tok', type=int, default=40000, metavar='N',
+                        help='max number of tokens per batch')
+    parser.add_argument('--seed', type=int, default=1111, metavar='N',
+                        help='random seed')
+    parser.add_argument('--no_cuda', action='store_true',
+                        help='disable CUDA')
+    parser.add_argument("--fp16",
+                        action="store_true",
+                        help="Whether to use 16-bit (mixed) precision (through NVIDIA apex) instead of 32-bit")
+    parser.add_argument("--fp16_opt_level",
+                        type=str,
+                        default="O1",
+                        help="For fp16: Apex AMP optimization level selected in ['O0', 'O1', 'O2', and 'O3']."
+                        "See details at https://nvidia.github.io/apex/amp.html")
+
+    args = parser.parse_args()
+
+    cuda = not args.no_cuda and torch.cuda.is_available()
+    device = torch.device('cuda' if cuda else 'cpu')
+    args.gpus = 1 if cuda else 0
+
+    main(args)
