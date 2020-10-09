@@ -1,5 +1,4 @@
 import argparse
-from argparse import Namespace
 import os
 import torch
 
@@ -11,19 +10,10 @@ from vocab import Vocab
 from dataset import load_data, get_train_dataloader, get_eval_dataloader
 
 
-def get_args(path):
-    print('Load model from {}'.format(path))
-    ckpt = torch.load(path)
-    args = ckpt['hparams']
-    return args
-
-
 def main(args):
-    torch.multiprocessing.set_sharing_strategy("file_system")
-
     pl.seed_everything(args.seed)
 
-    lr_logger = LearningRateLogger()
+    torch.multiprocessing.set_sharing_strategy("file_system")
 
     args.multigpu = torch.cuda.device_count() > 1
 
@@ -50,19 +40,16 @@ def main(args):
 
     model = get_model_class(args.model_type)(args)
 
-    if args.load_checkpoint:
-        ckpt = torch.load(args.load_checkpoint)
-        model.load_state_dict(ckpt['state_dict'])
-
     trainer = pl.Trainer(
         accumulate_grad_batches=args.accum_grad,
-        callbacks=[lr_logger] if args.lr_schedule != 'fixed' else None,
+        callbacks=[LearningRateLogger()] if args.lr_schedule != 'fixed' else None,
         val_check_interval=args.val_check_interval if args.val_check_interval > 0 else 1.0,
         gpus=args.gpus,
         distributed_backend='ddp' if args.multigpu else None,
         amp_level=args.fp16_opt_level,
         precision=16 if args.fp16 else 32,
-        default_root_dir=args.root_dir
+        default_root_dir=args.root_dir,
+        resume_from_checkpoint=args.load_checkpoint
     )
 
     trainer.fit(model, train_dataloader=train_dl, val_dataloaders=val_dl)
@@ -161,13 +148,5 @@ if __name__ == '__main__':
                              "https://nvidia.github.io/apex/amp.html")
 
     args = parser.parse_args()
-
-    if args.load_checkpoint:
-        path = args.load_checkpoint
-        args_dict = get_args(args.load_checkpoint)
-        args = Namespace(**args_dict)
-        args.load_checkpoint = path
-    else:
-        args.load_checkpoint = None
 
     main(args)
