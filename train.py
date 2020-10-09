@@ -13,7 +13,7 @@ from dataset import load_data, get_train_dataloader, get_eval_dataloader
 def main(args):
     pl.seed_everything(args.seed)
 
-    torch.multiprocessing.set_sharing_strategy("file_system")
+    torch.multiprocessing.set_sharing_strategy('file_system')
 
     args.multigpu = torch.cuda.device_count() > 1
 

@@ -69,7 +69,7 @@ def beam_search_step(model, vocab, device, beam_size, topk, t_seq, t_scores, t_i
 
     with torch.no_grad():
         b_logits_word = model.word(b_output_loc) * model.x_logit_scale
-    b_logits_word[:, vocab.blank] = float('-inf')       # never predict "<blank>"
+    b_logits_word[:, vocab.blank] = float('-inf')       # never predict <blank>
     b_lprob_word = F.log_softmax(b_logits_word, -1)     # (b, V)
 
     # Only keep topk best words
@@ -177,7 +177,7 @@ def generate(seq, model, vocab, device, decode):
         output_loc = output_blank[loc]
 
         logits_word = model.word(output_loc) * model.x_logit_scale
-        logits_word[vocab.blank] = float('-inf')    # never predict "<blank>"
+        logits_word[vocab.blank] = float('-inf')    # never predict <blank>
 
         # joint word, lrb prediction
         lprob_word = F.log_softmax(logits_word, -1)
@@ -227,25 +227,21 @@ def main(args):
     if args.output:
         output = os.path.join(os.path.dirname(os.path.dirname(args.checkpoint)), 'outputs/', args.output)
 
-    if os.path.exists(output):
-        raise ValueError
-
     if args.topk:
         assert args.beam_size > 1
 
     if args.eval:
-        sents = load_data(args.eval, model.hparams.add_eos, model.hparams.cat_sent, model.hparams.max_len)
-
-        val_dl = get_eval_dataloader(sents, vocab, model.hparams.eval_max_tok, data_workers=model.hparams.data_workers)
-
+        data = load_data(args.eval, model.hparams.add_eos, model.hparams.cat_sent, model.hparams.max_len)
+        dl = get_eval_dataloader(
+            data, vocab, args.max_tok,
+            data_workers=args.data_workers,
+            model_type=model.hparams.model_type)
         trainer = pl.Trainer(
             gpus=args.gpus,
             amp_level=args.fp16_opt_level,
             precision=16 if args.fp16 else 32,
-            default_root_dir='testing_logs'
-        )
-
-        trainer.test(model, test_dataloaders=val_dl)
+            default_root_dir='testing_logs')
+        trainer.test(model, test_dataloaders=dl)
 
     if args.eval_split:
         sents = load_data(args.eval_split, False, False, model.hparams.max_len)
@@ -257,7 +253,7 @@ def main(args):
             gpus=args.gpus,
             amp_level=args.fp16_opt_level,
             precision=16 if args.fp16 else 32,
-            default_save_path="testing_logs"
+            default_save_path='testing_logs'
         )
 
         trainer.test(model, test_dataloaders=val_dl)
@@ -280,7 +276,7 @@ def main(args):
                     if args.beam_size == 1:
                         fill, full = generate(s, model, vocab, device, args.decode)
                     else:
-                        assert args.decode == "greedy"
+                        assert args.decode == 'greedy'
                         fill, full = beam_search(s, model, vocab, device, args.beam_size, args.topk)
                     write(f_fill, fill, args.write_mid)
                     write(f_full, full, args.write_mid)
@@ -315,22 +311,21 @@ if __name__ == '__main__':
     parser.add_argument('--write_mid', action='store_true',
                         help='write intermediate partial sentences')
 
-    # parser.add_argument('--batch_size', type=int, default=512,
-    #                     help='batch size')
-    parser.add_argument('--eval_max_tok', type=int, default=40000,
+    parser.add_argument('--max_tok', type=int, default=40000,
                         help='max number of tokens per batch')
     parser.add_argument('--seed', type=int, default=1111,
                         help='random seed')
     parser.add_argument('--no_cuda', action='store_true',
                         help='disable CUDA')
-    parser.add_argument("--fp16",
-                        action="store_true",
-                        help="Whether to use 16-bit (mixed) precision (through NVIDIA apex) instead of 32-bit")
-    parser.add_argument("--fp16_opt_level",
-                        type=str,
-                        default="O1",
-                        help="For fp16: Apex AMP optimization level selected in ['O0', 'O1', 'O2', and 'O3']."
-                        "See details at https://nvidia.github.io/apex/amp.html")
+    parser.add_argument('--data_workers', type=int, default=8,
+                        help='data workers')
+    parser.add_argument('--fp16', action='store_true',
+                        help='whether to use 16-bit (mixed) precision '
+                             '(through NVIDIA apex) instead of 32-bit')
+    parser.add_argument('--fp16_opt_level', default='O1',
+                        help="for fp16: Apex AMP optimization level selected "
+                             "in ['O0', 'O1', 'O2', and 'O3']. see details at "
+                             "https://nvidia.github.io/apex/amp.html")
 
     args = parser.parse_args()
 
