@@ -27,6 +27,7 @@ def main(args):
             amp_level=args.fp16_opt_level,
             precision=16 if args.fp16 else 32,
             default_root_dir='testing_logs')
+        model.hparams.n_mc = args.n_mc
         trainer.test(model, test_dataloaders=dl)
 
     if args.output:
