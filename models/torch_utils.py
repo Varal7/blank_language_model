@@ -7,6 +7,13 @@ from vocab import Vocab
 get_canvas_cpp = load(name='canvas', sources=['models/get_canvas.cpp'])
 
 
+def select(logits, decode):
+    if decode == 'sample':
+        return torch.multinomial(logits.exp(), num_samples=1)[0]
+    else:
+        return logits.argmax()
+
+
 def seq_cross_entropy(pred, gold, pad):
     gold_shape = gold.shape
     pred = pred.view(-1, pred.size(-1))

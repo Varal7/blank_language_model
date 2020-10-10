@@ -7,7 +7,8 @@ from pytorch_lightning.callbacks import LearningRateLogger
 
 from models import get_model_class
 from vocab import Vocab
-from dataset import load_data, get_train_dataloader, get_eval_dataloader
+from utils import load_data
+from dataset import get_train_dataloader, get_eval_dataloader
 
 
 def main(args):

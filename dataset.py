@@ -38,35 +38,6 @@ def get_batches(data, vocab, max_tok, append_at_ends=False, same_len=False):
     return batches, order
 
 
-def load_sent(path, add_eos=False):
-    sents = []
-    with open(path) as f:
-        for line in f:
-            s = line.split()
-            if add_eos:
-                s += ['<eos>']
-            sents.append(s)
-    return sents
-
-
-def load_data(path, add_eos=False, cat_sent=False, max_len=512):
-    if not add_eos:
-        print('WARNING: You should always use add_eos to get comparable PPL on'
-              'language modeling tasks')
-
-    sents = load_sent(path, add_eos)
-    if cat_sent:
-        if not add_eos:
-            raise ValueError('Using cat_sent without add_eos')
-        d = [w for s in sents for w in s]
-        data = [d[i: i + max_len] for i in range(0, len(d), max_len)]
-    else:
-        print('# truncated sentences:',
-              sum(1 for s in sents if len(s) > max_len))
-        data = [s[:max_len] for s in sents]
-    return data
-
-
 class LMDataset(torch.utils.data.Dataset):
     def __init__(self, batches):
         self.batches = batches
