@@ -17,12 +17,12 @@ def select(logits, decode):
         return logits.argmax()
 
 
-def generate(seq, model, vocab, device, decode):
+def generate(seq, model, device, decode):
     seq = torch.LongTensor(seq).to(device)
     blanks = [i for i, w in enumerate(seq) if w == Vocab.blank]
     is_fill = [0] * len(seq)
-    fill = [[vocab.idx2word[id] for id, isf in zip(seq, is_fill) if isf]]
-    full = [[vocab.idx2word[id] for id in seq]]
+    fill = [[id for id, isf in zip(seq, is_fill) if isf]]
+    full = [seq]
     while len(blanks) > 0 and len(seq) <= model.hparams.max_len:
         output = model.forward_encoder(seq.unsqueeze(0))[0]
         output_blank = output[blanks]
@@ -34,29 +34,35 @@ def generate(seq, model, vocab, device, decode):
 
         # joint word, lrb prediction
         lprob_word = F.log_softmax(logits_word, -1)
-        output_word = torch.cat((output_loc.unsqueeze(0).expand(vocab.size, -1),
-                                 model.G.src_word_emb.weight), -1)
+        output_word = torch.cat((output_loc.unsqueeze(0).expand(model.hparams.vocab_size, -1),
+                                 model.enc.src_word_emb.weight), -1)
         logits_lrb = model.lrb(output_word)
         lprob_lrb = F.log_softmax(logits_lrb, -1)
         lprob_word_lrb = lprob_word.unsqueeze(1) + lprob_lrb
         word_lrb = select(lprob_word_lrb.view(-1), decode)
-        word, lrb = word_lrb / 4, word_lrb % 4
+        word, lrb = word_lrb // 4, word_lrb % 4
 
         # predict word first and then lrb
         # word = select(logits_word, decode)
-        # output_word = torch.cat((output_loc, model.G.src_word_emb(word)), dim=-1)
+        # output_word = torch.cat((output_loc, model.enc.src_word_emb(word)), dim=-1)
         # lrb = select(model.lrb(output_word), decode)
 
-        lb, rb = lrb / 2, lrb % 2
+        lb, rb = lrb // 2, lrb % 2
         ins = ([Vocab.blank] if lb else []) + [word] + ([Vocab.blank] if rb else [])
         ins = torch.LongTensor(ins).to(device)
         pos = blanks[loc]
         seq = torch.cat((seq[:pos], ins, seq[pos + 1:]))
         blanks = [i for i, w in enumerate(seq) if w == Vocab.blank]
         is_fill = is_fill[:pos] + [1] * len(ins) + is_fill[pos + 1:]
-        fill.append([vocab.idx2word[id] for id, isf in zip(seq, is_fill) if isf])
-        full.append([vocab.idx2word[id] for id in seq])
+        fill.append([id for id, isf in zip(seq, is_fill) if isf])
+        full.append(seq)
     return fill, full
+
+
+def makedir(path):
+    dir = os.path.dirname(path)
+    if dir:
+        os.makedirs(dir, exist_ok=True)
 
 
 def write(file, sents, write_mid):
@@ -92,11 +98,13 @@ def main(args):
 
     if args.output:
         output = os.path.join(os.path.dirname(os.path.dirname(args.checkpoint)), 'outputs/', args.output)
+        makedir(output)
 
     if args.sample:
         with open(output, 'w') as f:
             for i in tqdm(range(args.sample)):
-                _, full = generate([Vocab.blank], model, vocab, device, args.decode)
+                _, full = generate([Vocab.blank], model, device, args.decode)
+                full = [[vocab.idx2word[id] for id in ids] for ids in full]
                 write(f, full, args.write_mid)
 
     if args.fill:
@@ -105,7 +113,9 @@ def main(args):
         with open(output + '.fill', 'w') as f_fill:
             with open(output + '.full', 'w') as f_full:
                 for s in tqdm(sents):
-                    fill, full = generate(s, model, vocab, device, args.decode)
+                    fill, full = generate(s, model, device, args.decode)
+                    fill = [[vocab.idx2word[id] for id in ids] for ids in fill]
+                    full = [[vocab.idx2word[id] for id in ids] for ids in full]
                     write(f_fill, fill, args.write_mid)
                     write(f_full, full, args.write_mid)
 
