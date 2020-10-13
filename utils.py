@@ -4,6 +4,7 @@ import yaml
 from models import get_model_class
 
 
+
 def strip_eos(sents):
     return [sent[:sent.index('<eos>')] if '<eos>' in sent else sent
             for sent in sents]
@@ -15,6 +16,12 @@ def makedir(path):
         os.makedirs(dir, exist_ok=True)
 
 
+def repeat(f, x, n) :
+    for i in range(n):
+        x = f(x)
+    return x
+
+
 def get_hparams(checkpoint):
     hparams_file = os.path.join(os.path.dirname(os.path.dirname(checkpoint)), 'hparams.yaml')
     with open(hparams_file) as stream:
@@ -24,6 +31,7 @@ def get_hparams(checkpoint):
 def load_model(checkpoint):
     hparams = get_hparams(checkpoint)
     model = get_model_class(hparams['model_type']).load_from_checkpoint(checkpoint)
+    model.hparams.root_dir = repeat(lambda x: os.path.dirname(x), checkpoint, 4)
     return model
 
 
