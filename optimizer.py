@@ -10,10 +10,10 @@ def config_opt_schedule(params, args):
         lr=args.lr
     )
 
-    if args.lr_schedule == "fixed":
+    if args.lr_schedule == 'fixed':
         return optimizer
 
-    elif args.lr_schedule == "triangular":
+    elif args.lr_schedule == 'triangular':
         scheduler = torch.optim.lr_scheduler.CyclicLR(
             optimizer,
             base_lr=0,
