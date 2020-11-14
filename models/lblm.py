@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from . lm import LM
-from . torch_utils import get_known_length_canvas, sample_permutation, seq_cross_entropy, collect, batch_randint
+from . torch_utils import get_known_length_canvas, sample_permutation, seq_cross_entropy, collect, batch_randint, select
 from vocab import Vocab
 
 
@@ -20,6 +20,12 @@ class LBLM(LM):
             nn.ReLU(),
             nn.Linear(hparams.d_model * 2, hparams.max_len)
         )
+
+    def blank_indices(self):
+        return Vocab.blank_0 + np.arange(self.hparams.max_len)
+
+    def init_canvas(self):
+        return np.random.choice(self.blank_indices()[1:])   # no blank_0
 
     def get_loss(self, seq, canvas, blanks, rest, loc, lb):
         count = (rest != -1).sum(1)
@@ -41,7 +47,7 @@ class LBLM(LM):
 
         logits_lrb = self.lrb(output_word)
 
-        # Mask out illegal blank options
+        # mask out illegal blank options
         length = collect(canvas, blanks) - Vocab.blank_0
         length_loc = collect(length, loc, -1)
         bs, seq_len = length_loc.shape
@@ -75,6 +81,7 @@ class LBLM(LM):
                 'lrb': loss_lrb.mean()
                 }
 
+    # lower than real perplexity since conditioned on length
     def nll_mc(self, seq, n, m):
         """
         Compute negative log-likelihood by monte carlo estimate
@@ -98,3 +105,45 @@ class LBLM(LM):
                 logp -= loss_loc + loss_word + loss_lrb
             a.append(logp.unsqueeze(1))
         return np.log(m) - (n + 1).float().lgamma() - torch.logsumexp(torch.cat(a, 1), 1)
+
+    def generate(self, seq, decode, device):
+        seq = torch.LongTensor(seq).to(device)
+        blanks = [i for i, w in enumerate(seq) if w.item() in self.blank_indices()]
+        is_fill = [0] * len(seq)
+        fill = [[id for id, isf in zip(seq, is_fill) if isf]]
+        full = [seq]
+        while len(blanks) > 0 and len(seq) <= self.hparams.max_len:
+            output = self.forward_encoder(seq.unsqueeze(0))[0]
+            output_blank = output[blanks]
+            loc = select(self.loc(output_blank).squeeze(-1), decode)
+            output_loc = output_blank[loc]
+
+            length_previous = seq[blanks[loc]] - Vocab.blank_0
+
+            logits_word = self.word(output_loc) * self.x_logit_scale
+            logits_word[self.blank_indices()] = float('-inf')    # never predict <blank_t>
+
+            # joint word, lrb prediction
+            lprob_word = F.log_softmax(logits_word, -1)
+            output_word = torch.cat((output_loc.unsqueeze(0).expand(self.hparams.vocab_size, -1),
+                                     self.enc.src_word_emb.weight), -1)
+            logits_lrb = self.lrb(output_word)
+            logits_lrb[:, length_previous:] = float('-inf')     # mask out illegal blank options
+            max_blank_len = logits_lrb.shape[1]
+            lprob_lrb = F.log_softmax(logits_lrb, -1)
+            lprob_word_lrb = lprob_word.unsqueeze(1) + lprob_lrb
+            word_lrb = select(lprob_word_lrb.view(-1), decode)
+            word, lrb = word_lrb // max_blank_len, word_lrb % max_blank_len
+
+            lb = lrb
+            rb = length_previous - lb - 1
+
+            ins = ([Vocab.blank_0 + lb] if lb else []) + [word] + ([Vocab.blank_0 + rb] if rb else [])
+            ins = torch.LongTensor(ins).to(device)
+            pos = blanks[loc]
+            seq = torch.cat((seq[:pos], ins, seq[pos + 1:]))
+            blanks = [i for i, w in enumerate(seq) if w.item() in self.blank_indices()]
+            is_fill = is_fill[:pos] + [1] * len(ins) + is_fill[pos + 1:]
+            fill.append([id for id, isf in zip(seq, is_fill) if isf])
+            full.append(seq)
+        return fill, full

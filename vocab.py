@@ -37,11 +37,5 @@ class Vocab(object):
             for v, o in zip(voc, occ):
                 f.write('{}\t{}\n'.format(v, o))
 
-    def is_blank(self, candidate):
-        return (candidate == Vocab.blank) | self.is_lblank(candidate)
-
-    def is_lblank(self, candidate):
-        return self.idx2word[candidate].startswith('<blank_')
-
     def word_to_idx(self, word):
         return self.word2idx[word] if word in self.word2idx else Vocab.unk

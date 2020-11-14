@@ -21,6 +21,9 @@ class BLM(LM):
             nn.Linear(hparams.d_model * 2, 4)
         )
 
+    def init_canvas(self):
+        return Vocab.blank
+
     def get_loss(self, seq, canvas, blanks, rest, loc, lb, rb):
         count = (rest != -1).sum(1)
         output = self.forward_encoder(canvas)

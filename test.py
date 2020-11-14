@@ -37,7 +37,7 @@ def main(args):
     if args.sample:
         with open(output, 'w') as f:
             for i in tqdm(range(args.sample)):
-                _, full = model.generate([Vocab.blank], args.decode, device)
+                _, full = model.generate([model.init_canvas()], args.decode, device)
                 full = [[vocab.idx2word[id] for id in ids] for ids in full]
                 write(f, full, args.write_mid)
 
