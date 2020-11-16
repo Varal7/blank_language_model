@@ -4,7 +4,6 @@ import yaml
 from models import get_model_class
 
 
-
 def strip_eos(sents):
     return [sent[:sent.index('<eos>')] if '<eos>' in sent else sent
             for sent in sents]
@@ -16,7 +15,7 @@ def makedir(path):
         os.makedirs(dir, exist_ok=True)
 
 
-def repeat(f, x, n) :
+def repeat(f, x, n):
     for i in range(n):
         x = f(x)
     return x
