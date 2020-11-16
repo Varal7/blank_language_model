@@ -110,7 +110,7 @@ class LBLM(LM):
         seq = torch.LongTensor(seq).to(device)
         blanks = [i for i, w in enumerate(seq) if w.item() in self.blank_indices()]
         is_fill = [0] * len(seq)
-        fill = [[id for id, isf in zip(seq, is_fill) if isf]]
+        fill = [[]]
         full = [seq]
         while len(blanks) > 0 and len(seq) <= self.hparams.max_len:
             output = self.forward_encoder(seq.unsqueeze(0))[0]
