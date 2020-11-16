@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from . lm import LM
-from . torch_utils import get_ins_canvas, sample_permutation, seq_cross_entropy, collect, batch_randint, new_arange
+from . torch_utils import get_ins_canvas, sample_permutation, seq_cross_entropy, collect, batch_randint, new_arange, select
 from vocab import Vocab
 
 
@@ -84,3 +84,60 @@ class InsTLM(LM):
                 logp -= loss_loc + loss_word
             a.append(logp.unsqueeze(1))
         return np.log(m) - (n + 1).float().lgamma() - torch.logsumexp(torch.cat(a, 1), 1)
+
+    def generate(self, seq, blanks, decode, device, force_insert=False, prioritize_unfilled=False):
+        seq = torch.LongTensor([Vocab.first] + seq + [Vocab.last]).to(device)
+        is_fill = [0] * len(seq)
+        fill = [[]]
+        full = [seq[1:-1]]
+        mandatory_blanks = np.array(blanks)
+        if len(blanks) > 0:
+            while len(seq) < self.hparams.max_len:
+                output = self.forward_encoder(seq.unsqueeze(0))
+                features = self.pool_out(
+                    torch.cat((output[:, :-1, :], output[:, 1:, :]), dim=-1)
+                )[0]
+
+                logits_loc = self.loc(features).squeeze(-1)
+
+                all_filled = (mandatory_blanks == None).all()
+                can_stop = not force_insert or all_filled
+                end_slot = len(seq) - 2
+
+                if prioritize_unfilled and not all_filled:
+                    logits_loc[np.array(blanks)[mandatory_blanks == None]] = float('-inf')
+
+                if end_slot not in blanks and can_stop:   # enable end slot for termination
+                    blanks_end = blanks + [end_slot]
+                    loc = select(logits_loc[blanks_end], decode)
+                    pos = blanks_end[loc]
+                else:
+                    loc = select(logits_loc[blanks], decode)
+                    pos = blanks[loc]
+
+                output_loc = features[pos]
+                logits_word = self.word(output_loc) * self.x_logit_scale
+
+                if pos == end_slot:
+                    if end_slot not in blanks:  # end slot is added artificially, so no words allowed there
+                        break
+                    elif not can_stop:
+                        logits_word[Vocab.last] = float('-inf')
+
+                word = select(logits_word, decode)
+
+                if pos == end_slot and word.item() == Vocab.last:
+                    break
+
+                blanks = blanks[:loc + 1] + [x + 1 for x in blanks[loc:]]
+                mandatory_blanks = np.concatenate((
+                    mandatory_blanks[:loc],
+                    np.array([None]),
+                    np.array([None]),
+                    [x + 1 if x is not None else None for x in mandatory_blanks[loc + 1:]]
+                ))
+                seq = torch.cat((seq[:pos + 1], word.unsqueeze(0), seq[pos + 1:]))
+                is_fill = is_fill[:pos + 1] + [1] + is_fill[pos + 1:]
+                fill.append([id for id, isf in zip(seq, is_fill) if isf])
+                full.append(seq[1:-1])
+        return fill, full

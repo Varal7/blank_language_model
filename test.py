@@ -37,7 +37,11 @@ def main(args):
     if args.sample:
         with open(output, 'w') as f:
             for i in tqdm(range(args.sample)):
-                _, full = model.generate([model.init_canvas()], args.decode, device)
+                if model.hparams.model_type == 'inst':
+                    _, full = model.generate([], [0], args.decode, device)
+                else:
+                    _, full = model.generate([model.init_canvas()], args.decode, device)
+
                 full = [[vocab.idx2word[id] for id in ids] for ids in full]
                 write(f, full, args.write_mid)
 
@@ -47,7 +51,20 @@ def main(args):
         with open(output + '.fill', 'w') as f_fill:
             with open(output + '.full', 'w') as f_full:
                 for s in tqdm(sents):
-                    fill, full = model.generate(s, args.decode, device)
+                    if model.hparams.model_type == 'inst':
+                        seq, blanks = [], []
+                        for w in s:
+                            if w == vocab.blank:
+                                blanks.append(len(seq))
+                            else:
+                                seq.append(w)
+                        if args.anywhere:
+                            blanks = list(range(len(seq) + 1))
+                        fill, full = model.generate(seq, blanks, args.decode, device,
+                                                    args.force_insert, args.prioritize_unfilled)
+                    else:
+                        fill, full = model.generate(s, args.decode, device)
+
                     fill = [[vocab.idx2word[id] for id in ids] for ids in fill]
                     full = [[vocab.idx2word[id] for id in ids] for ids in full]
                     write(f_fill, fill, args.write_mid)
@@ -78,6 +95,14 @@ if __name__ == '__main__':
                         help='greedy decoding or sampling')
     parser.add_argument('--write_mid', action='store_true',
                         help='write intermediate partial sentences')
+
+    # Specific to InsT
+    parser.add_argument('--anywhere', action='store_true',
+                        help='fill in anywhere, not only blanks')
+    parser.add_argument('--force_insert', action='store_true',
+                        help='disable termination unless all slots are filled')
+    parser.add_argument('--prioritize_unfilled', action='store_true',
+                        help='prioritize unfilled slots if any')
 
     parser.add_argument('--seed', type=int, default=1111,
                         help='random seed')
