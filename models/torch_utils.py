@@ -45,7 +45,6 @@ def sample_permutation(seq):
     score.masked_fill_(seq == Vocab.pad, 1)         # always put pads last
     score.masked_fill_(seq == Vocab.first, -1)      # always keep <first>
     score.masked_fill_(seq == Vocab.last, -1)       # always keep <last>
-    score.masked_fill_(seq == Vocab.missing, -1)    # always keep missings
     indices = score.argsort()
     rank = torch.zeros_like(seq)
     rank[torch.arange(len(seq)).unsqueeze(1), indices] = \

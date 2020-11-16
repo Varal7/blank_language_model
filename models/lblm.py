@@ -67,14 +67,12 @@ class LBLM(LM):
             n: number of BPE tokens
             n_real: number of real words (for reporting PPL)
         """
-        m = (seq == Vocab.missing).sum(1)
-        # m = torch.max(m, n - 10)
-        k = batch_randint(m, n - 1)
+        k = batch_randint(0, n - 1)
         rank = sample_permutation(seq)
         keep = (rank < k.unsqueeze(1))
         canvas, blanks, rest, loc, lb = get_known_length_canvas(seq, keep, n)
         loss_loc, loss_word, loss_lrb = self.get_loss(seq, canvas, blanks, rest, loc, lb)
-        nll_lb = (loss_loc + loss_word + loss_lrb) * (n - m).float() - (n - m + 1).float().lgamma()
+        nll_lb = (loss_loc + loss_word + loss_lrb) * n.float() - (n + 1).float().lgamma()
         return {'loss': nll_lb.sum() / n_real.sum(),
                 'loc': loss_loc.mean(),
                 'word': loss_word.mean(),

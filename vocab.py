@@ -13,11 +13,11 @@ class Vocab(object):
                 self.idx2word.append(w)
         self.size = len(self.word2idx)
 
-    pad, unk, first, last, eos, missing, blank, blank_0 = range(8)
+    pad, unk, first, last, eos, blank, blank_0 = range(7)
 
     @staticmethod
     def build(sents, path, size, max_blank_len=None):
-        voc = ['<pad>', '<unk>', '<first>', '<last>', '<eos>', '<missing>', '<blank>', '<blank_0>']
+        voc = ['<pad>', '<unk>', '<first>', '<last>', '<eos>', '<blank>', '<blank_0>']
         if max_blank_len:
             voc += ['<blank_{}>'.format(i) for i in range(1, max_blank_len)]
         occ = [0 for _ in voc]

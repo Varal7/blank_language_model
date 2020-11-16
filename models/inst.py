@@ -41,16 +41,15 @@ class InsTLM(LM):
             n: number of BPE tokens
             n_real: number of real words (for reporting PPL)
         """
-        m = (seq == Vocab.missing).sum(1)
-        k = batch_randint(m, n)
+        k = batch_randint(0, n)
         rank = sample_permutation(seq)
-        keep = (rank < (k + 2).unsqueeze(1))    # keep <first>, <last> and k tokens with k >= m
+        keep = (rank < (k + 2).unsqueeze(1))    # keep <first> and <last> in addition
         canvas, rest, loc = get_ins_canvas(seq, keep, n)
 
         # canvas has <first> + k tokens + <last>, so k + 1 slots
         mask = (new_arange(canvas) < (k + 1).unsqueeze(1))[:, :-1]  # mask for logits_loc
         loss_loc, loss_word = self.get_loss(seq, canvas, rest, loc, mask)
-        nll_lb = (loss_loc + loss_word) * (n - m + 1).float() - (n - m + 1).float().lgamma()
+        nll_lb = (loss_loc + loss_word) * (n + 1).float() - (n + 1).float().lgamma()
         return {'loss': nll_lb.sum() / n_real.sum(),
                 'loc': loss_loc.mean(),
                 'word': loss_word.mean(),
