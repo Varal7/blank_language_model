@@ -7,6 +7,17 @@ This repository contains the code for our EMNLP 2020 paper:
 ## Acknowledgements
 We use the Transformer implementation from https://github.com/jadore801120/attention-is-all-you-need-pytorch
 
+
+## Demo
+
+Online demo available at [http://128.52.131.173:8501].
+
+Or try locally by running
+
+```
+streamlit run app.py
+```
+
 ## Citation
 
 If you use our work, please cite:
