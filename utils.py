@@ -29,7 +29,7 @@ def get_hparams(checkpoint):
 
 def load_model(checkpoint):
     hparams = get_hparams(checkpoint)
-    model = get_model_class(hparams['model_type']).load_from_checkpoint(checkpoint)
+    model = get_model_class(hparams['model_type']).load_from_checkpoint(checkpoint, hparams=hparams)
     model.hparams.root_dir = repeat(lambda x: os.path.dirname(x), checkpoint, 4)
     return model
 
