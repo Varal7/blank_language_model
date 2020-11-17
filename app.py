@@ -23,8 +23,8 @@ st.write('# Blank Language Models: Demo')
 
 st.write('## Load  model')
 
-yelp_neg = "checkpoints/neg/lightning_logs/version_0/checkpoints/model.ckpt"
-yelp_pos = "checkpoints/pos/lightning_logs/version_0/checkpoints/model.ckpt"
+yelp_neg = "checkpoints/yelp/neg/lightning_logs/version_0/checkpoints/model.ckpt"
+yelp_pos = "checkpoints/yelp/pos/lightning_logs/version_0/checkpoints/model.ckpt"
 
 if not os.path.exists(yelp_neg) or not os.path.exists(yelp_pos):
     st.write(":warning: Default models not found. Run `get_model.sh` to download models trained on Yelp.")
