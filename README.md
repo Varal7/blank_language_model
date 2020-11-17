@@ -1,9 +1,11 @@
 # Blank Language Models
 
-This repository contains the code for our EMNLP 2020 paper.
-
+This repository contains the code for our EMNLP 2020 paper:
 [**Blank Language Models**](https://arxiv.org/abs/2002.03079)  
-*Tianxiao Shen, Victor Quach, Regina Barzilay, and Tommi Jaakkola*
+*Tianxiao Shen\*, Victor Quach\*, Regina Barzilay, and Tommi Jaakkola* (\*: Equal contribution)
+
+## Acknowledgements
+We use the Transformer implementation from https://github.com/jadore801120/attention-is-all-you-need-pytorch
 
 ## Citation
 
