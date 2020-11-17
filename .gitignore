@@ -112,3 +112,5 @@ venv.bak/
 
 #  ddp
 __temp_weight_ddp_end.ckpt
+
+checkpoints/
