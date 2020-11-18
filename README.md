@@ -6,8 +6,8 @@ This repository contains the code for our EMNLP 2020 paper:
 
 Given partially specified text with one or more blanks, BLM will fill in the blanks with a variable number of tokens consistent with the context, making it ideal for text editing and rewriting.
 
-Input:  They also have \___ which \___ .  
-Output: They also have <u>ice cream</u> which <u>is really good</u> .
+> Input:  They also have \___ which \___ .  
+> Output: They also have <ins>ice cream</ins> which <ins>is really good</ins> .
 
 <p align="center"><img width=900 src="img/model.png"></p>
 
