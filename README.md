@@ -5,8 +5,8 @@ This repository contains the code for our EMNLP 2020 paper:
 *Tianxiao Shen&ast;, Victor Quach&ast;, Regina Barzilay, and Tommi Jaakkola (&ast;: Equal contribution)*
 
 Given partially specified text with one or more blanks, BLM will fill in the blanks with a variable number of tokens consistent with the context, making it ideal for text editing and rewriting.
-<p align="center"><img width=800 src="img/infill.png"></p>
-<p align="center"><img width=800 src="img/model.png"></p>
+<p align="center"><img width=400 src="img/infill.png"></p>
+<p align="center"><img width=900 src="img/model.png"></p>
 
 ## Demo
 
