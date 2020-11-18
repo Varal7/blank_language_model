@@ -4,7 +4,7 @@ This repository contains the code for our EMNLP 2020 paper:
 [**Blank Language Models**](https://arxiv.org/abs/2002.03079)  
 *Tianxiao Shen&ast;, Victor Quach&ast;, Regina Barzilay, and Tommi Jaakkola (&ast;: Equal contribution)*
 
-<p align="center"><img width=800 src="img/model.pdf"></p>
+<p align="center"><img width=800 src="img/model.jpeg"></p>
 
 ## Demo
 
