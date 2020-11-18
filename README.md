@@ -4,7 +4,9 @@ This repository contains the code for our EMNLP 2020 paper:
 [**Blank Language Models**](https://arxiv.org/abs/2002.03079)  
 *Tianxiao Shen&ast;, Victor Quach&ast;, Regina Barzilay, and Tommi Jaakkola (&ast;: Equal contribution)*
 
-<p align="center"><img width=800 src="img/model.jpeg"></p>
+Given partially specified text with one or more blanks, BLM will fill in the blanks with a variable number of tokens consistent with the context, making it ideal for text editing and rewriting.
+<p align="center"><img width=800 src="img/infill.png"></p>
+<p align="center"><img width=800 src="img/model.png"></p>
 
 ## Demo
 
