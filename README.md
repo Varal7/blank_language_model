@@ -1,12 +1,10 @@
 # Blank Language Models
 
-This repository contains the code for our EMNLP 2020 paper:
+This repository contains the code for our EMNLP 2020 paper:  
 [**Blank Language Models**](https://arxiv.org/abs/2002.03079)  
-*Tianxiao Shen\*, Victor Quach\*, Regina Barzilay, and Tommi Jaakkola* (\*: Equal contribution)
+*Tianxiao Shen&ast;, Victor Quach&ast;, Regina Barzilay, and Tommi Jaakkola (&ast;: Equal contribution)*
 
-## Acknowledgements
-We use the Transformer implementation from https://github.com/jadore801120/attention-is-all-you-need-pytorch
-
+<p align="center"><img width=800 src="img/model.pdf"></p>
 
 ## Demo
 
@@ -17,6 +15,11 @@ Or try locally by running
 ```
 streamlit run app.py
 ```
+
+
+## Acknowledgements
+We use the Transformer implementation from https://github.com/jadore801120/attention-is-all-you-need-pytorch
+
 
 ## Citation
 
