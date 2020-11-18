@@ -21,6 +21,8 @@ device = st.sidebar.selectbox("Device",
 
 st.write('# Blank Language Models: Demo')
 
+st.write("[View source](http://github.com/varal7/blank_language_model)")
+
 st.write('## Load  model')
 
 yelp_neg = "checkpoints/yelp/neg/lightning_logs/version_0/checkpoints/model.ckpt"
