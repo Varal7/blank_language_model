@@ -3,7 +3,7 @@ import os
 import torch
 
 import pytorch_lightning as pl
-from pytorch_lightning.callbacks import LearningRateLogger
+from pytorch_lightning.callbacks import LearningRateMonitor
 
 from models import get_model_class
 from vocab import Vocab
@@ -43,7 +43,7 @@ def main(args):
 
     trainer = pl.Trainer(
         accumulate_grad_batches=args.accum_grad,
-        callbacks=[LearningRateLogger()] if args.lr_schedule != 'fixed' else None,
+        callbacks=[LearningRateMonitor()] if args.lr_schedule != 'fixed' else None,
         val_check_interval=args.val_check_interval if args.val_check_interval > 0 else 1.0,
         gpus=args.gpus,
         distributed_backend='ddp' if args.multigpu else None,
