@@ -18,7 +18,7 @@ Given partially specified text with one or more blanks, BLM will fill in the bla
 
 ## Demo
 
-We have an online demo built using [streamlit](https://www.streamlit.io/), available at http://128.52.131.173:8501.
+We have an online demo built using [streamlit](https://www.streamlit.io/), available [here](http://128.52.131.173:8501)
 
 Or try locally by running:
 
@@ -29,7 +29,8 @@ streamlit run app.py
 
 ## Dependencies
 
-Our code is based on the [PyTorch Lightning](https://github.com/PyTorchLightning/pytorch-lightning) framework.  
+Our code is based on the [PyTorch Lightning](https://github.com/PyTorchLightning/pytorch-lightning) framework.
+
 It has been tested in PyTorch 1.6.0, PyTorch Lightning 1.0.7
 
 ## Acknowledgements
