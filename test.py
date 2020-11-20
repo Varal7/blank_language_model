@@ -79,7 +79,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--eval', default='',
                         help='data file to evaluate')
-    parser.add_argument('--n_mc', type=int, default=100,
+    parser.add_argument('--n_mc', type=int, default=10,
                         help='num of samples for monte carlo estimate of ppl')
     parser.add_argument('--max_tok', type=int, default=40000,
                         help='max number of tokens per batch')
