@@ -43,6 +43,7 @@ def main(args):
 
     trainer = pl.Trainer(
         accumulate_grad_batches=args.accum_grad,
+        max_steps=args.max_steps,
         callbacks=[LearningRateMonitor()] if args.lr_schedule != 'fixed' else None,
         val_check_interval=args.val_check_interval if args.val_check_interval > 0 else 1.0,
         gpus=args.gpus,
@@ -123,6 +124,8 @@ if __name__ == '__main__':
                         help='number of warmup steps (triangular)')
     parser.add_argument('--descend_steps', type=int, default=300000,
                         help='number of descending steps (triangular)')
+    parser.add_argument('--max_steps', type=int, default=300000,
+                        help='number of training steps')
 
     # Validation
     parser.add_argument('--eval_max_tok', type=int, default=40000,
