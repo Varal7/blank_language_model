@@ -124,7 +124,7 @@ if __name__ == '__main__':
                         help='number of warmup steps (triangular)')
     parser.add_argument('--descend_steps', type=int, default=300000,
                         help='number of descending steps (triangular)')
-    parser.add_argument('--max_steps', type=int, default=300000,
+    parser.add_argument('--max_steps', type=int, default=500000,
                         help='number of training steps')
 
     # Validation
