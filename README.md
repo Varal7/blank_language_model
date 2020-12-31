@@ -34,7 +34,7 @@ Our code is based on the [PyTorch Lightning](https://github.com/PyTorchLightning
 It has been tested in PyTorch 1.6.0, PyTorch Lightning 1.0.7
 
 
-## Download data
+## Download Data
 
 Download the processed Yelp and Yahoo datasets by running:
 ```
@@ -73,8 +73,7 @@ After training, we can evaluate the model's perplexity by Monte Carlo estimate, 
 
 For all of the following, replace `epoch\=???.ckpt` with the checkpoint saved in training. The output file will be stored in `outputs/` within the checkpoint directory.
 
-
-### Evaluating Perplexity
+**Evaluate Perplexity**
 
 The following command evaluates for Yelp negative sentences:
 
@@ -83,8 +82,7 @@ python test.py --checkpoint checkpoints/yelp/neg/blm/lightning_logs/version_0/ch
 --eval data/yelp/test.0 --n_mc 10
 ```
 
-
-### Generating from scratch
+**Generate From Scratch**
 
 The following command samples from the model trained on Yelp negative sentences:
 
@@ -95,8 +93,7 @@ python test.py --checkpoint checkpoints/yelp/neg/blm/lightning_logs/version_0/ch
 
 Turn on the `--write_mid` option to output the whole generation trajectory.
 
-
-### Filling in the blanks
+**Fill in the Blanks**
 
 The following command uses the model trained on Yelp negative sentences to fill in blanked positive sentences to achieve sentiment transfer:
 
@@ -104,6 +101,7 @@ The following command uses the model trained on Yelp negative sentences to fill 
 python test.py --checkpoint checkpoints/yelp/neg/blm/lightning_logs/version_0/checkpoints/epoch\=???.ckpt \
 --fill data/yelp/blank/test.1.blank --output test.1.tsf
 ```
+
 
 ## Acknowledgements
 
